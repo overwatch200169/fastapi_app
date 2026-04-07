@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import Query, Depends, HTTPException
+from fastapi import Query
 
 from sqlmodel import Session, select
 

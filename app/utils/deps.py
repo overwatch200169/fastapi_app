@@ -4,7 +4,7 @@ from fastapi import Depends, Path
 from sqlmodel import Session
 
 from app.models.databases import get_session
-from app.models.users import User
+
 from app.services.UserServices import UserService
 
 
