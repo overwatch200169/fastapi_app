@@ -7,7 +7,5 @@ class UserBase(SQLModel):
     email: str
 
 class UserProfileBase(SQLModel):
-    birthday: datetime |None
-    age: int |None
-    Bio :str|None
+    user_id:int
 

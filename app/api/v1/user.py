@@ -1,16 +1,17 @@
 from fastapi import APIRouter, HTTPException
 
 from app.models import User
-from app.schemas.users import UserPublic, UserCreate
+from app.schemas.users import UserPublic, UserCreate, UserProfilePublic, UserProfileUpdate
 from app.utils.deps import UserServiceDep
 
 router=APIRouter()
-
+#形参决定了请求体所以在形参中加入profile：UserProfileCreate的时候请求体会检查相关的参数（现在已经被删）
 @router.post("",response_model=UserPublic)
 async def create_user(user:UserCreate,service:UserServiceDep)->User:
 
 
-    return service.create_user(user)
+    return service.create_user_with_profile(user)
+
 
 
 #返回是列表，response_model 也要是列表
@@ -37,3 +38,13 @@ async def read_user(user_id:int,service:UserServiceDep):
 async  def delete_user(user_id:int,service:UserServiceDep):
     return service.delete_user(user_id)
 
+@router.get('/{user_id}/profile',response_model=UserProfilePublic)
+async def read_user_profile(user_id:int,service:UserServiceDep):
+    user_profile=service.read_user_profile(user_id)
+    if not user_profile:
+        raise HTTPException(404,"user profile lost")
+    return user_profile
+
+@router.patch('/{user_id}/profile',response_model=UserProfilePublic)
+async def update_user_profile(user_id:int,profile:UserProfileUpdate,service:UserServiceDep):
+    return service.update_user_profile(user_id,profile)

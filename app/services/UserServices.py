@@ -1,11 +1,13 @@
-from typing import Annotated
+from typing import Annotated, Tuple
 
 from fastapi import Query
+from sqlalchemy.orm.sync import update
 
 from sqlmodel import Session, select
 
 from app.models import User
-from app.schemas.users import UserCreate
+from app.models.users import UserProfile
+from app.schemas.users import UserCreate, UserProfilePublic, UserProfileUpdate
 from app.utils.tools import get_password_hash
 
 
@@ -14,7 +16,7 @@ class UserService:
     def __init__(self,session:Session):
         self.session=session
 
-    def create_user(self,user:UserCreate)->User:
+    def create_user_with_profile(self,user:UserCreate)->User:
         db_user=User.model_validate(user)
 
         hashed_password=get_password_hash(db_user.password)
@@ -22,10 +24,14 @@ class UserService:
         db_user.password=hashed_password
 
         self.session.add(db_user)
+        # self.session.refresh(db_user)
+        self.session.flush()#立即提交并刷新操作，用于获取user_id
 
+        db_profile=UserProfile(user_id=db_user.user_id)#用上面的写法写db_profile=UserProfile db_profile.user_id=db_user.user_id应该也行
+        self.session.add(db_profile)
         self.session.commit()
         self.session.refresh(db_user)
-
+        # self.session.refresh(db_profile)
         return db_user
 
     def list_users(self, offset: int = 0,limit: Annotated[int, Query(le=100)] = 100, ):
@@ -48,3 +54,21 @@ class UserService:
         self.session.commit()
         return True
 
+    def read_user_profile(self,user_id:int):
+        user_profile=self.session.get(UserProfile,user_id)
+        if not user_profile:
+            return False
+        return user_profile
+
+    def update_user_profile(self,user_id:int,profile:UserProfileUpdate):
+        user_profile_db=self.read_user_profile(user_id)
+        if not user_profile_db:
+            return False
+        profile_data=profile.model_dump(exclude_unset=True)
+        #要model里有默认值才能发挥exclude_unset的作用
+        user_profile_db.sqlmodel_update(profile_data)#self不用管
+        self.session.add(user_profile_db)
+        self.session.commit()
+        self.session.refresh(user_profile_db)
+
+        return user_profile_db
