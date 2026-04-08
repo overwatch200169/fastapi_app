@@ -38,6 +38,9 @@ async def read_user(user_id:int,service:UserServiceDep):
 async  def delete_user(user_id:int,service:UserServiceDep):
     return service.delete_user(user_id)
 
+
+
+
 @router.get('/{user_id}/profile',response_model=UserProfilePublic)
 async def read_user_profile(user_id:int,service:UserServiceDep):
     user_profile=service.read_user_profile(user_id)

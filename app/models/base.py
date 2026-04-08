@@ -9,3 +9,5 @@ class UserBase(SQLModel):
 class UserProfileBase(SQLModel):
     user_id:int
 
+class ArticleBase(SQLModel):
+    title:str
