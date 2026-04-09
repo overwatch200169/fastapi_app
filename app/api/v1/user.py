@@ -1,8 +1,10 @@
-from fastapi import APIRouter, HTTPException
+from typing import Annotated
+
+from fastapi import APIRouter, HTTPException, Depends
 
 from app.models import User
 from app.schemas.users import UserPublic, UserCreate, UserProfilePublic, UserProfileUpdate
-from app.utils.deps import UserServiceDep
+from app.utils.deps import UserServiceDep, get_current_active_user
 
 router=APIRouter()
 #形参决定了请求体所以在形参中加入profile：UserProfileCreate的时候请求体会检查相关的参数（现在已经被删）
@@ -21,7 +23,9 @@ async def read_users(service:UserServiceDep):
     return service.list_users()
 
 
-
+@router.get("/me")
+async def read_users_me(current_user: Annotated[UserPublic, Depends(get_current_active_user)]):
+    return current_user
 
 
 @router.get("/{user_id}",response_model=UserPublic)

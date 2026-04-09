@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from pydantic import BaseModel
 from sqlmodel import SQLModel
 
 class UserBase(SQLModel):
@@ -11,3 +12,11 @@ class UserProfileBase(SQLModel):
 
 class ArticleBase(SQLModel):
     title:str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class TokenData(BaseModel):
+    email: str | None = None

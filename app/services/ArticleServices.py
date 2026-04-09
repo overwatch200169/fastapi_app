@@ -21,8 +21,9 @@ class ArticleService:
         article=self.session.get(Article,article_id)
         return article
 
-    def create_article(self,article:ArticleCreate):
+    def create_article(self,article:ArticleCreate,user):
         article_db=Article.model_validate(article)
+        article_db.author_id=user.user_id
         self.session.add(article_db)
         self.session.commit()
         self.session.refresh(article_db)

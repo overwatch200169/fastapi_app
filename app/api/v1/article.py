@@ -1,7 +1,10 @@
-from fastapi import APIRouter
+from typing import Annotated
+
+from fastapi import APIRouter, Depends
 
 from app.schemas.articles import ArticlePublic, ArticleList, ArticleCreate
-from app.utils.deps import ArticleServiceDep
+from app.schemas.users import UserPublic
+from app.utils.deps import ArticleServiceDep, get_current_active_user
 
 router=APIRouter()
 
@@ -13,7 +16,7 @@ async def read_article(article_id:int,service:ArticleServiceDep):
 async def list_article(service:ArticleServiceDep):
     return service.list_articles()
 @router.post('/',response_model=ArticlePublic)
-async def create_article(article:ArticleCreate,service:ArticleServiceDep):
-    return service.create_article(article)
+async def create_article(article:ArticleCreate,service:ArticleServiceDep,user:Annotated[UserPublic,Depends(get_current_active_user)]):
+    return service.create_article(article,user)
 
 
