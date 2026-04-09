@@ -20,7 +20,6 @@ class AuthService:
         return user
 
     def authenticate_user(self,email:str, password:str):
-        print(f"{email}")
         user = self.get_user_from_db(email)
         if not user:
             return False
