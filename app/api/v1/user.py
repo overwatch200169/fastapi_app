@@ -1,6 +1,6 @@
 from typing import Annotated
 
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, UploadFile
 
 from app.models import User
 from app.schemas.users import UserPublic, UserCreate, UserProfilePublic, UserProfileUpdate
@@ -56,9 +56,15 @@ async def read_user_profile(user_id:int,service:UserServiceDep):
 
 @router.patch('/{user_id}/profile',response_model=UserProfilePublic)
 async def update_user_profile(user_id:int,profile:UserProfileUpdate,service:UserServiceDep):
-    return service.update_user_profile(user_id,profile)
+    user = service.read_user(user_id)
+    if not user:
+        raise HTTPException(404, 'user not found')
+    user_profile= service.update_user_profile(user.user_id,profile)
+    if not user_profile:
+        raise HTTPException(404, 'user profile not found')
+    return user_profile
 
 # TODO 上传头像路由
 @router.post('/avatar')
-async def upload_avatar():
+async def upload_avatar(current_user:get_current_active_user_dep,user:UserServiceDep,file:UploadFile):
     pass
