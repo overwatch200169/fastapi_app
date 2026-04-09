@@ -17,6 +17,7 @@ def get_auth_service(session:SessionDep):
 
 AuthServiceDep=Annotated[AuthService,Depends(get_auth_service)]
 
+#TODO 增加从cookie读取token功能
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")#要考虑前缀问题
 
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],service:AuthServiceDep):

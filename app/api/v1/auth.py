@@ -13,6 +13,7 @@ from app.core.security import create_access_token
 
 router=APIRouter()
 
+#TODO 增加设置cookie功能
 @router.post('/token')
 async def login_for_access_token(form_data:Annotated[OAuth2PasswordRequestForm,Depends()],service:AuthServiceDep)->Token:
     user=service.authenticate_user(form_data.username,form_data.password)
