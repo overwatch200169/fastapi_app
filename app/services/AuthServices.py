@@ -2,7 +2,7 @@ from fastapi import HTTPException, status
 from sqlmodel import Session, select
 
 from app.models import User
-from app.utils.tools import verify_password
+from app.core.security import verify_password
 
 
 class AuthService:

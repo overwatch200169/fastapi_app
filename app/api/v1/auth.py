@@ -4,10 +4,12 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.utils.config import settings
+from app.core.config import settings
 from app.models.base import Token
-from app.utils.deps import AuthServiceDep
-from app.utils.tools import create_access_token
+# from app.utils.deps import AuthServiceDep
+# from app.utils.tools import create_access_token
+from app.dependencies.auth import AuthServiceDep
+from app.core.security import create_access_token
 
 router=APIRouter()
 

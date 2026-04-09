@@ -8,8 +8,8 @@ from sqlmodel import Session, select
 from app.models import User
 from app.models.users import UserProfile
 from app.schemas.users import UserCreate, UserProfilePublic, UserProfileUpdate
-from app.utils.tools import get_password_hash
-
+# from app.utils.tools import get_password_hash
+from app.core.security import get_password_hash
 
 
 class UserService:

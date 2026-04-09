@@ -4,7 +4,9 @@ from fastapi import APIRouter, HTTPException, Depends
 
 from app.models import User
 from app.schemas.users import UserPublic, UserCreate, UserProfilePublic, UserProfileUpdate
-from app.utils.deps import UserServiceDep, get_current_active_user
+# from app.utils.deps import UserServiceDep, get_current_active_user
+from app.dependencies.user import UserServiceDep
+from app.dependencies.auth import get_current_active_user_dep
 
 router=APIRouter()
 #形参决定了请求体所以在形参中加入profile：UserProfileCreate的时候请求体会检查相关的参数（现在已经被删）
@@ -23,8 +25,8 @@ async def read_users(service:UserServiceDep):
     return service.list_users()
 
 
-@router.get("/me")
-async def read_users_me(current_user: Annotated[UserPublic, Depends(get_current_active_user)]):
+@router.get("/me",response_model=UserPublic)
+async def read_users_me(current_user: get_current_active_user_dep):
     return current_user
 
 
@@ -55,3 +57,8 @@ async def read_user_profile(user_id:int,service:UserServiceDep):
 @router.patch('/{user_id}/profile',response_model=UserProfilePublic)
 async def update_user_profile(user_id:int,profile:UserProfileUpdate,service:UserServiceDep):
     return service.update_user_profile(user_id,profile)
+
+# TODO 上传头像路由
+@router.post('/avatar')
+async def upload_avatar():
+    pass

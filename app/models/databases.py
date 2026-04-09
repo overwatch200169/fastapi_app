@@ -1,5 +1,5 @@
-from sqlmodel import Session, create_engine, SQLModel
-from app.utils.config import settings
+from sqlmodel import Session, create_engine
+from app.core.config import settings
 
 # sqlite_file_name = "database.db"
 # sqlite_url = f"sqlite:///./{sqlite_file_name}"

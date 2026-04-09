@@ -4,7 +4,9 @@ from fastapi import APIRouter, Depends
 
 from app.schemas.articles import ArticlePublic, ArticleList, ArticleCreate
 from app.schemas.users import UserPublic
-from app.utils.deps import ArticleServiceDep, get_current_active_user
+# from app.utils.deps import ArticleServiceDep, get_current_active_user
+from app.dependencies.article import ArticleServiceDep
+from app.dependencies.auth import  get_current_active_user
 
 router=APIRouter()
 
