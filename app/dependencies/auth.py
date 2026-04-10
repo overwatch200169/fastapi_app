@@ -20,7 +20,7 @@ def get_auth_service(session:SessionDep):
 AuthServiceDep=Annotated[AuthService,Depends(get_auth_service)]
 
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")#要考虑前缀问题
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token",auto_error=False)#要考虑前缀问题，如果把这个作为依赖运行但是不干扰后续其他获取token的方式需要auto_error=False不抛出错误
 
 async def get_token(request:Request,token_from_header: Annotated[str, Depends(oauth2_scheme)]):
     # token=None
@@ -35,12 +35,6 @@ async def get_token(request:Request,token_from_header: Annotated[str, Depends(oa
 
     return tokens
 
-
-
-
-
-
-
 # async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],service:AuthServiceDep):
 async def get_current_user(token: Annotated[dict, Depends(get_token)], service: AuthServiceDep):
     credentials_exception = HTTPException(
@@ -49,6 +43,7 @@ async def get_current_user(token: Annotated[dict, Depends(get_token)], service: 
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
+        print(token)
         payload = decode_jwt_token(token.get('access'))
         email = payload.get('sub')
         if email is None:
