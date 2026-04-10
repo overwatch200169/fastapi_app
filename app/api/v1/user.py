@@ -64,7 +64,8 @@ async def update_user_profile(user_id:int,profile:UserProfileUpdate,service:User
         raise HTTPException(404, 'user profile not found')
     return user_profile
 
-# TODO 上传头像路由
-@router.post('/avatar')
-async def upload_avatar(current_user:get_current_active_user_dep,user:UserServiceDep,file:UploadFile):
-    pass
+
+@router.post('/avatar',response_model=UserProfilePublic)
+async def upload_avatar(current_user:get_current_active_user_dep,service:UserServiceDep,file:UploadFile):
+    uploaded_avatar_profile=service.update_user_avatar(current_user,file)
+    return uploaded_avatar_profile

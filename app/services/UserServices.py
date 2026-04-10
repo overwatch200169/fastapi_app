@@ -1,10 +1,11 @@
 from typing import Annotated, Tuple
 
-from fastapi import Query
+from fastapi import Query, UploadFile
 from sqlalchemy.orm.sync import update
 
 from sqlmodel import Session, select
 
+from app.core.file import upload_file
 from app.models import User
 from app.models.users import UserProfile
 from app.schemas.users import UserCreate, UserProfilePublic, UserProfileUpdate
@@ -72,3 +73,10 @@ class UserService:
         self.session.refresh(user_profile_db)
 
         return user_profile_db
+
+    def update_user_avatar(self,user,file:UploadFile):
+        avatar_url=upload_file(file).get('filename')
+        profile=UserProfileUpdate(avatar_url=avatar_url)
+        updated_profile=self.update_user_profile(user.user_id,profile)
+        return updated_profile
+

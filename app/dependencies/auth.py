@@ -1,13 +1,15 @@
+from datetime import timedelta
 from typing import Annotated
 
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status,Request
 from fastapi.security import OAuth2PasswordBearer
 from jwt import InvalidTokenError
 
-from app.core.security import decode_jwt_token
+from app.core.config import settings
+from app.core.security import decode_jwt_token, create_access_token
 from app.dependencies.database import SessionDep
 from app.models import User
-from app.models.base import TokenData
+from app.models.base import TokenData, Token
 from app.schemas.users import UserPublic
 from app.services.AuthServices import AuthService
 
@@ -17,17 +19,37 @@ def get_auth_service(session:SessionDep):
 
 AuthServiceDep=Annotated[AuthService,Depends(get_auth_service)]
 
-#TODO 增加从cookie读取token功能
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/token")#要考虑前缀问题
 
-async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],service:AuthServiceDep):
+async def get_token(request:Request,token_from_header: Annotated[str, Depends(oauth2_scheme)]):
+    # token=None
+    tokens={}
+    token=request.cookies.get('access_token')
+    refresh_token=request.cookies.get('refresh_token')
+    if not token and token_from_header:
+        token=token_from_header
+    tokens['access']=token
+    tokens['refresh']=refresh_token
+
+
+    return tokens
+
+
+
+
+
+
+
+# async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)],service:AuthServiceDep):
+async def get_current_user(token: Annotated[dict, Depends(get_token)], service: AuthServiceDep):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        payload = decode_jwt_token(token)
+        payload = decode_jwt_token(token.get('access'))
         email = payload.get('sub')
         if email is None:
             raise credentials_exception
@@ -49,3 +71,30 @@ async def get_current_active_user(
     return UserPublic.model_validate(current_user)
 
 get_current_active_user_dep=Annotated[UserPublic,Depends(get_current_active_user)]
+
+
+async def refresh_access_token(token:Annotated[dict, Depends(get_token)],current_active_user:get_current_active_user_dep):
+    credentials_exception = HTTPException(
+        status_code=status.HTTP_401_UNAUTHORIZED,
+        detail="refresh token expire",
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+    try:
+        payload = decode_jwt_token(token.get('refresh'))
+        email=payload.get('sub')
+        type = payload.get('type')
+        if email is None or type !='refresh':
+            raise credentials_exception
+
+    except InvalidTokenError:
+        raise credentials_exception
+
+    user = current_active_user
+    if user.email != email:
+        raise credentials_exception
+    new_access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
+    new_access_token = create_access_token(data={"sub": user.email}, expires_delta=new_access_token_expires)
+
+    return new_access_token
+
+refresh_access_token_dep=Annotated[str,Depends(refresh_access_token)]
