@@ -43,7 +43,7 @@ async def get_current_user(token: Annotated[dict, Depends(get_token)], service: 
         headers={"WWW-Authenticate": "Bearer"},
     )
     try:
-        print(token)
+        # print(token)
         payload = decode_jwt_token(token.get('access'))
         email = payload.get('sub')
         if email is None:

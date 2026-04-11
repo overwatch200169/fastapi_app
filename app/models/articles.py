@@ -10,4 +10,5 @@ class Article(ArticleBase,table=True):
     author_id:int |None =Field(default=None,index=True)
     title :str |None  =Field(default=None)
     body:str|None=Field(default=None)
+    alive:bool=Field(default=True)
 

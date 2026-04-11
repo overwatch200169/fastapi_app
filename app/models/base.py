@@ -20,3 +20,8 @@ class Token(BaseModel):
 
 class TokenData(BaseModel):
     email: str | None = None
+
+class ContactMe(BaseModel):
+    sender_name:str| None = None
+    sender_email:str| None = None
+    mail_text:str| None = None

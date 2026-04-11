@@ -12,5 +12,11 @@ class Settings(BaseSettings):
     sqlite_url = f"sqlite:///./{sqlite_file_name}"
 
     connect_args = {"check_same_thread": False}
+    #email
+    SEND_ADDRESS='overvatch200019@163.com'
+    AUTH_PASSWORD='GHbiHyapRnGxVfAS'
+    RECEIVE_ADDRESS=['1091587398@qq.com']
+    SMTP_HOST='smtp.163.com'
+
 
 settings=Settings()
