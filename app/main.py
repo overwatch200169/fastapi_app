@@ -1,8 +1,11 @@
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from sqlmodel import SQLModel
 
 from . import models
 from .api import api_router
+from .core.es_client import create_es_connection,get_es_connection
 from .models.databases import engine
 
 #分模块的时候不能这么做，会循环导入，因为app/main目前是部分初始化
@@ -10,7 +13,7 @@ from .models.databases import engine
 # ALGORITHM = "HS256"
 # ACCESS_TOKEN_EXPIRE_MINUTES = 30
 
-app=FastAPI()
+# app=FastAPI()
 
 
 def create_db_and_tables():
@@ -18,10 +21,30 @@ def create_db_and_tables():
 
 
 
-
-@app.on_event("startup")
-def on_startup():
+@asynccontextmanager
+async def lifespan(app: FastAPI):
     create_db_and_tables()
+    # 启动时：创建Elasticsearch连接
+    create_es_connection()
+    try:
+
+        es_client = await get_es_connection()
+        info = await es_client.info()
+        print(f"[启动成功] 已连接到 Elasticsearch 集群: {info.get('cluster_name')}")
+    except Exception as e:
+        print(f"[启动失败] Elasticsearch 连接异常: {e}")
+    yield
+    # 关闭时：可以在这里添加清理逻辑，例如关闭所有连接
+    # connections.remove_connection('default')
+    print("FastAPI 应用关闭。")
+
+# 创建 FastAPI 应用，并注入生命周期
+app = FastAPI(lifespan=lifespan)
+
+
+# @app.on_event("startup")
+# def on_startup():
+#     create_db_and_tables()
 
 app.include_router(api_router, prefix="/api")
 
