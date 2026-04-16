@@ -1,10 +1,10 @@
 from typing import Annotated
-
-from fastapi import Query
+from datetime import datetime, timezone
+from fastapi import Query, HTTPException
 from sqlmodel import Session, select
 
 from app.models import Article
-from app.schemas.articles import ArticleCreate
+from app.schemas.articles import ArticleCreate, ArticleSearch, ArticleUpdate
 
 
 class ArticleService:
@@ -30,6 +30,24 @@ class ArticleService:
         self.session.commit()
         self.session.refresh(article_db)
         return article_db
+    def update_article(self,user_id,article_id,article:ArticleUpdate):
+
+        article_db=self.read_article(article_id)
+        if article_db.alive is False:
+            return False
+        if article_db.author_id==user_id:
+
+            article_data=article.model_dump(exclude_unset=True)
+
+            article_db.sqlmodel_update(article_data)
+            article_db.updated_time=datetime.now(timezone.utc)
+            self.session.add(article_db)
+            self.session.commit()
+            self.session.refresh(article_db)
+        else:
+            return False
+        return True
+
     def remove_article(self,article_id,user_id):
         article_db=self.read_article(article_id)
         if article_db.alive is False:
@@ -44,6 +62,48 @@ class ArticleService:
         else:
             return False
         return True
+
+
+    #TODO es双写双删
+    @staticmethod
+    async def create_article_search(article_data: Article):
+
+        try:
+            # 创建文章文档
+            article = ArticleSearch()
+            article.article_id=article_data.article_id
+            article.title = article_data.title
+            article.body = article_data.body
+            article.alive = article_data.alive
+            article.author_id=article_data.author_id
+            article.crate_time=article_data.crate_time
+            article.updated_time=article_data.updated_time
+
+
+            # 保存到Elasticsearch
+            await article.save()
+
+            return {
+                "message": "文章创建成功",
+                "id": article.meta.id,
+                "article_id": article.article_id
+            }
+        except Exception as e:
+            print(f"创建文章失败: {e}")
+            raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+
+    @staticmethod
+    async def delete_article_search_by_id(article_id:int):
+        try:
+            s=ArticleSearch().search()
+            s.filter("term", article_id=article_id)
+            response=await s.execute()
+            print(response)
+            response[0].alive=False
+            await response[0].save()
+        except Exception as e:
+            print(str(e))
+            return False
 
 
 

@@ -25,3 +25,5 @@ class ContactMe(BaseModel):
     sender_name:str| None = None
     sender_email:str| None = None
     mail_text:str| None = None
+    captcha_id:str
+    captcha_code: str
