@@ -1,8 +1,8 @@
 from datetime import datetime, timezone
-from typing import Optional
+from typing import Optional, Annotated
 
-from elasticsearch.dsl import async_connections, Query, Q
-from fastapi import APIRouter, HTTPException, logger
+from elasticsearch.dsl import async_connections,  Q
+from fastapi import APIRouter, HTTPException, Query,logger
 
 from app.models import Article
 from app.schemas.articles import ArticleSearch
@@ -45,12 +45,13 @@ async def check_es_connection():
 
 @router.get('/article')
 async def search_articles(
-        q: Optional[str] = Query(None, description="搜索关键词"),
+        q: Annotated[str|None, Query()]=None,
         author_id: Optional[int] = None,
-
-        alive: Optional[bool] = Query(None, description="状态"),
-        page: int = Query(None, ge=1, description="页码"),
-        size: int = Query(None, ge=1, le=100, description="每页大小")
+        tags:Annotated[list[str]|None,Query()]=None,
+        alive: Annotated[bool|None,Query()] = None,
+        page: Annotated[int,Query(ge=1)]=1  ,
+        size: Annotated[int,Query( ge=1, le=100)] = 10,
+        date_year_month:Annotated[str,Query()]=None
 ):
     """搜索文章"""
     try:
@@ -63,7 +64,7 @@ async def search_articles(
             multi_match_q = Q(
                 "multi_match",
                 query=q,
-                fields=["title^3", "body^2"],
+                fields=["title^3", "body^2","tags"],
                 fuzziness="AUTO",
                 # operator="or"
             )
@@ -72,6 +73,12 @@ async def search_articles(
         # 过滤条件
         if author_id:
             s = s.filter("term", author_id=author_id)
+        if tags:
+            # tag_list=[tag.strip() for tag in tags.split(',')]
+            for tag in tags:
+                print(tag)
+                s=s.filter("term",tags=tag)
+
 
 
 
@@ -80,12 +87,39 @@ async def search_articles(
         if alive:
             s = s.filter("term", alive=alive)
 
+
+        if date_year_month:
+
+            year_month=date_year_month.split('-')
+            if year_month[-1] in ['01','03','05','07','08','10','12']:
+                range_query = {
+                    'gte': f'{date_year_month}-01T00:00:00',
+                    'lte': f'{date_year_month}-31T23:59:59',  # 注意月份天数
+                    'format': 'yyyy-MM-dd\'T\'HH:mm:ss'
+                }
+            elif year_month[-1]=='02':
+                range_query = {
+                    'gte': f'{date_year_month}-01T00:00:00',
+                    'lte': f'{date_year_month}-28T23:59:59',  # 注意月份天数
+                    'format': 'yyyy-MM-dd\'T\'HH:mm:ss'
+                }
+            else:
+                range_query = {
+                    'gte': f'{date_year_month}-01T00:00:00',
+                    'lte': f'{date_year_month}-30T23:59:59',  # 注意月份天数
+                    'format': 'yyyy-MM-dd\'T\'HH:mm:ss'
+                }
+
+
+            s=s.filter('range',create_time=range_query)
+
+
         # 只搜索已发布的文章
 
         # s = s.filter("term", alive=True)
 
         # 排序
-        s = s.sort("-crate_time")
+        s = s.sort("-create_time",'updated_time')
 
         # 分页
         start = (page - 1) * size
@@ -96,12 +130,13 @@ async def search_articles(
 
         # 获取聚合数据（如果需要）
         # 例如：按标签聚合
-        # s.aggs.bucket('tags', 'terms', field='tags.name.keyword')
+
 
         return {
             "total": response.hits.total.value,
             "page": page,
             "size": size,
+            'ids':[hit._id for hit in response['hits']['hits']],
             "results": [hit.to_dict() for hit in response],
             "suggestions": getattr(response, 'suggest', {})
         }
@@ -109,7 +144,31 @@ async def search_articles(
         print(f"搜索失败: {e}")
         raise HTTPException(status_code=500, detail=f"搜索失败: {e}")
 
+@router.get('/monthly_aggression')
+async def monthly_status():
+    s = ArticleSearch.search()
+    s.aggs.bucket('articles_per_month',  # 聚合结果的名称
+            'date_histogram',      # 聚合类型：日期直方图
+            field='create_time',    # 您模型中存储创建时间的字段
+            calendar_interval='month',  # 按自然月分组
+            format='yyyy-MM',      # 可选：格式化返回的日期键
+            time_zone='+08:00'     # 可选：指定时区（例如东八区）
+    )
+    s=s[:0]
+    response=await s.execute()
+    monthly_stats = []
+    if hasattr(response, 'aggregations'):
+        for bucket in response.aggregations.articles_per_month.buckets:
+            # bucket.key 是时间戳，bucket.key_as_string 是格式化后的日期
+            monthly_stats.append({
+                'month': bucket.key_as_string,  # 例如 "2024-01"
+                'doc_count': bucket.doc_count  # 该月的文章数量
+            })
 
+    return {
+        "total": response.hits.total.value,
+        'monthly_stats': monthly_stats
+    }
 
 @router.post("/create_test")
 async def create_article_test(article_data: Article):
@@ -122,7 +181,7 @@ async def create_article_test(article_data: Article):
         article.body = article_data.body
         article.alive = article_data.alive
         article.author_id=article_data.author_id
-        article.crate_time=datetime.now(timezone.utc)
+        article.create_time=datetime.now(timezone.utc)
         article.updated_time=datetime.now(timezone.utc)
 
 
