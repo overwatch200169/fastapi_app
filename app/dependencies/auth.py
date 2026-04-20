@@ -93,3 +93,13 @@ async def refresh_access_token(token:Annotated[dict, Depends(get_token)],current
     return new_access_token
 
 refresh_access_token_dep=Annotated[str,Depends(refresh_access_token)]
+
+async def need_admin(current_active_user:get_current_active_user_dep):
+    if current_active_user.level!=0:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="需要管理员权限"
+        )
+    return current_active_user
+
+need_admin_dep=Annotated[UserPublic,Depends(need_admin)]
