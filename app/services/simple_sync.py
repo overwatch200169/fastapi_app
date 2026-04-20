@@ -41,8 +41,8 @@ def get_recent_articles(
 
     statement = select(Article).where(
         (Article.updated_time >= start_time) |
-        (Article.crate_time >= start_time)
-    ).order_by(Article.crate_time.desc())
+        (Article.create_time >= start_time)
+    ).order_by(Article.create_time.desc())
 
     results = session.exec(statement)
     articles = results.all()
@@ -69,22 +69,23 @@ async def create_article_search_instance(db_article):
         es_article.article_id = db_article.article_id
         es_article.title = db_article.title
         es_article.body = db_article.body
-        es_article.alive = db_article.alive if hasattr(db_article, 'alive') else True,
+        es_article.alive = db_article.alive
         es_article.author_id = db_article.author_id
-        es_article.crate_time = db_article.crate_time
+        es_article.create_time = db_article.create_time
         es_article.updated_time=db_article.updated_time
+        es_article.tags=[tag.strip() for tag in db_article.tags.split(',')if tag.strip()]
 
         # 处理时间字段
-        if hasattr(db_article, 'crate_time') and db_article.crate_time:
-            if isinstance(db_article.crate_time, datetime):
-                es_article.crate_time = db_article.crate_time
+        if hasattr(db_article, 'create_time') and db_article.create_time:
+            if isinstance(db_article.create_time, datetime):
+                es_article.create_time = db_article.create_time
             else:
                 try:
-                    es_article.crate_time = datetime.fromisoformat(
-                        str(db_article.crate_time).replace('Z', '+00:00')
+                    es_article.create_time = datetime.fromisoformat(
+                        str(db_article.create_time).replace('Z', '+00:00')
                     )
                 except (ValueError, TypeError):
-                    es_article.crate_time = datetime.now(timezone.utc)
+                    es_article.create_time = datetime.now(timezone.utc)
 
         if hasattr(db_article, 'updated_time') and db_article.updated_time:
             if isinstance(db_article.updated_time, datetime):
@@ -103,7 +104,7 @@ async def create_article_search_instance(db_article):
         return es_article
 
     except Exception as e:
-        logger.error(f"保存文章到ES失败 ID={getattr(db_article, 'article_id', 'unknown')}: {e}")
+        print(f"保存文章到ES失败 ID={getattr(db_article, 'article_id', 'unknown')}: {e}")
         return False
 
 
@@ -127,10 +128,10 @@ async def batch_create_article_search_instances(
             instances.append(instance)
 
         except Exception as e:
-            logger.error(f"转换文章失败 ID={getattr(article, 'article_id', 'unknown')}: {e}")
+            print(f"转换文章失败 ID={getattr(article, 'article_id', 'unknown')}: {e}")
             continue
 
-    logger.info(f"批量转换完成: {len(instances)}/{len(db_articles)} 篇文章")
+    print(f"批量转换完成: {len(instances)}/{len(db_articles)} 篇文章")
     return instances
 
 
@@ -159,8 +160,8 @@ async def upsert_article_search_instances(
     actions = []
     for instance in article_instances:
         # 获取文档ID
-        doc_id = instance.meta.id if hasattr(instance.meta, 'id') else str(instance.article_id)
-
+        # doc_id = instance.meta.id if hasattr(instance.meta, 'id') else str(instance.article_id)
+        doc_id =  str(instance.article_id)
         # 构建 upsert 操作
         action = {
             "_op_type": "update",  # 使用 update 操作
@@ -180,11 +181,11 @@ async def upsert_article_search_instances(
             raise_on_error=False
         )
 
-        logger.info(f"批量 upsert 完成: 成功 {success} 条, 失败 {failed} 条")
+        print(f"批量 upsert 完成: 成功 {success} 条, 失败 {failed} 条")
         return {"updated": success, "failed": failed}
 
     except Exception as e:
-        logger.error(f"批量 upsert 失败: {e}")
+        print(f"批量 upsert 失败: {e}")
         return {"updated": 0, "failed": len(actions), "error": str(e)}
 
 
@@ -218,8 +219,8 @@ async def simple_article_sync(
 
         # 查询需要同步的文章
         # statement = select(Article).where(
-        #     (Article.crate_time >= sync_start)
-        # ).order_by(Article.crate_time.desc())
+        #     (Article.create_time >= sync_start)
+        # ).order_by(Article.create_time.desc())
         #
         # results = session.exec(statement)
         db_articles = get_recent_articles(session)
