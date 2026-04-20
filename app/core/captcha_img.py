@@ -29,6 +29,7 @@ class CaptchaManager:
             'expires_at': datetime.now() + timedelta(minutes=5),
 
         }
+        print(self._storage[captcha_id])
         return captcha_id,img_bytes,captcha_code
 
 
@@ -38,14 +39,16 @@ class CaptchaManager:
         data=self._storage[captcha_id]
         print('1',data)
         if datetime.now()>data['expires_at']:
+            del self._storage[captcha_id]
             return False
         if input_captcha.upper() !=data['captcha_code']:
+            del self._storage[captcha_id]
             return False
 
         del self._storage[captcha_id]
         return True
 
-captcha_manager = CaptchaManager()
+# captcha_manager = CaptchaManager()
 
 
 
