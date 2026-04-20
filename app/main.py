@@ -5,7 +5,10 @@ from sqlmodel import SQLModel
 
 from . import models
 from .api import api_router
+from .core.captcha_img import CaptchaManager
+from .core.config import settings
 from .core.es_client import create_es_connection,get_es_connection
+from .middleware.csrf import CSRFMiddleware
 from .models.databases import engine
 from .services.es_init import init_es_indexes
 
@@ -25,6 +28,8 @@ def create_db_and_tables():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    print("创建验证码管理器")
+    app.state.captcha_manager=CaptchaManager()
     create_db_and_tables()
     # 启动时：创建Elasticsearch连接
     create_es_connection()
@@ -58,6 +63,8 @@ async def lifespan(app: FastAPI):
         scheduler = AsyncIOScheduler()
         scheduler.shutdown()
         print("定时任务已停止")
+        del app.state.captcha_manager
+        print("删除验证码管理器")
     except:
         pass
     print("FastAPI 应用关闭。")
@@ -69,6 +76,8 @@ app = FastAPI(lifespan=lifespan)
 # @app.on_event("startup")
 # def on_startup():
 #     create_db_and_tables()
+# 在 FastAPI 中注册
+app.add_middleware(CSRFMiddleware,secret_key=settings.SECRET_KEY)
 
 app.include_router(api_router, prefix="/api")
 
