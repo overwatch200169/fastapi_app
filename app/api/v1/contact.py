@@ -6,7 +6,7 @@ from app.models.base import ContactMe
 from app.schemas.contact import EmailResponse
 
 
-router=APIRouter()
+router=APIRouter(tags=['Contact me'])
 
 @router.post("/me",response_model=EmailResponse)
 #annotated依赖（这是类型）而不是调用类本身

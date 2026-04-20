@@ -11,7 +11,7 @@ from app.models.base import Token
 from app.dependencies.auth import AuthServiceDep, refresh_access_token_dep
 from app.core.security import create_access_token,create_refresh_token
 
-router=APIRouter()
+router=APIRouter(tags= ['Authorization'])
 
 
 @router.post('/token')
@@ -39,3 +39,5 @@ async def access_token_refresh(refresh_access_token:refresh_access_token_dep,res
     response.set_cookie(key='access_token',value=new_access_token,samesite='lax',httponly=True,max_age=settings.ACCESS_TOKEN_EXPIRE_MINUTES*60)
 
     return Token(access_token=new_access_token,token_type='bearer')
+
+#csrf 端点
