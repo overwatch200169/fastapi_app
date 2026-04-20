@@ -9,6 +9,8 @@ class UserPublic(UserBase):
     user_id: int
     # email : str
     username:str
+    level: int
+
 
 class UserCreate(UserBase):
     email: str | None
