@@ -19,7 +19,7 @@ def start_article_sync_scheduler():
     # 每10分钟执行一次增量同步
     scheduler.add_job(
         run_article_sync,
-        IntervalTrigger(minutes=3),
+        IntervalTrigger(minutes=1),
         id='article_incremental_sync',
         name='文章增量同步',
         max_instances=1

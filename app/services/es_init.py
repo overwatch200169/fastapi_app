@@ -9,7 +9,7 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-async def init_es_indexes(es_client,delete_existing = True):
+async def init_es_indexes(es_client,delete_existing = False):
     """
     初始化Elasticsearch索引
     :param delete_existing: 是否删除已存在的索引（用于开发环境）
