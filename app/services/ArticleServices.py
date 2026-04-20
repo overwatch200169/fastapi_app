@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from fastapi import Query, HTTPException
 from sqlmodel import Session, select
 
+
 from app.models import Article
 from app.schemas.articles import ArticleCreate, ArticleSearch, ArticleUpdate
 
@@ -12,9 +13,19 @@ class ArticleService:
     def __init__(self,session:Session):
         self.session=session
 
-    def list_articles(self,offset:int=0,limit:Annotated[int,Query(le=100)]=100):
+    def list_articles_by_user(self,user_id: int,offset:int=0,limit:int=100):
 
-        articles=self.session.exec(select(Article).where(Article.alive==True).offset(offset).limit(limit)).all()
+        articles=self.session.exec(select(Article).where(Article.alive==True).where(Article.author_id==user_id).offset(offset).limit(limit)).all()
+
+        return articles
+
+
+    def list_articles(self,user_level: int=None,offset:int=0,limit:Annotated[int,Query(le=100)]=100):
+
+        if user_level!=0:
+            articles=self.session.exec(select(Article).where(Article.alive==True).offset(offset).limit(limit)).all()
+        else:
+            articles = self.session.exec(select(Article).offset(offset).limit(limit)).all()
         return articles
 
     def read_article(self,article_id:int):
@@ -33,7 +44,7 @@ class ArticleService:
     def update_article(self,user_id,article_id,article:ArticleUpdate):
 
         article_db=self.read_article(article_id)
-        if article_db.alive is False:
+        if article_db is False:
             return False
         if article_db.author_id==user_id:
 
@@ -48,18 +59,39 @@ class ArticleService:
             return False
         return True
 
-    def remove_article(self,article_id,user_id):
+    def remove_article(self, article_id, user_id, user_level=None):
         article_db=self.read_article(article_id)
-        if article_db.alive is False:
-            return False
+        if not article_db:
+            raise HTTPException(404, "文章不存在")
         article_removal=Article(alive=False)
-        if article_db.author_id==user_id:
-            article_data=article_removal.model_dump(exclude_unset=True)
-            article_db.sqlmodel_update(article_data)
-            self.session.add(article_db)
-            self.session.commit()
-            self.session.refresh(article_db)
-        else:
+        try:
+            if article_db.author_id==user_id or user_level==0:
+                article_data=article_removal.model_dump(exclude_unset=True)
+                article_db.sqlmodel_update(article_data)
+                self.session.add(article_db)
+                self.session.commit()
+                self.session.refresh(article_db)
+            else:
+                raise HTTPException(403, "无权删除此文章")
+        except Exception as e:
+            return False
+        return True
+
+    def recover_article(self, article_id, user_level):
+        article_db=self.session.get(Article,article_id)
+        if not article_db:
+            raise HTTPException(404, "文章不存在")
+        article_recovery=Article(alive=True)
+        try:
+            if user_level==0:
+                article_data=article_recovery.model_dump(exclude_unset=True)
+                article_db.sqlmodel_update(article_data)
+                self.session.add(article_db)
+                self.session.commit()
+                self.session.refresh(article_db)
+            else:
+                raise HTTPException(403, "无权恢复此文章")
+        except Exception as e:
             return False
         return True
 
@@ -70,14 +102,16 @@ class ArticleService:
 
         try:
             # 创建文章文档
-            article = ArticleSearch()
+            article = ArticleSearch(meta={'id':article_data.article_id})
+            # article
             article.article_id=article_data.article_id
             article.title = article_data.title
             article.body = article_data.body
             article.alive = article_data.alive
             article.author_id=article_data.author_id
-            article.crate_time=article_data.crate_time
+            article.create_time=article_data.create_time
             article.updated_time=article_data.updated_time
+            article.tags = [tag.strip() for tag in article_data.tags.split(',') if tag.strip()]
 
 
             # 保存到Elasticsearch
@@ -95,10 +129,12 @@ class ArticleService:
     @staticmethod
     async def delete_article_search_by_id(article_id:int):
         try:
+            print(article_id)
             s=ArticleSearch().search()
             s.filter("term", article_id=article_id)
             response=await s.execute()
-            print(response)
+            print(response[0].article_id)
+            print(response[0].alive)
             response[0].alive=False
             await response[0].save()
         except Exception as e:
