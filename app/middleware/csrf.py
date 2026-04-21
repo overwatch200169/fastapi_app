@@ -119,15 +119,18 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         """验证 CSRF Token"""
         # 两个 Token 都必须存在
         if not cookie_token or not header_token:
+            print(1)
             return False
 
         # 使用恒定时间比较
         if not hmac.compare_digest(cookie_token, header_token):
+            print(2)
             return False
 
         # 验证 Token 格式
         parts = cookie_token.split(":")
         if len(parts) != 3:
+            print(3)
             return False
 
         token, timestamp_str, signature = parts
@@ -139,6 +142,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
             # 检查是否过期
             if current_time - timestamp > self.max_age:
+                print(4)
                 return False
         except ValueError:
             return False
@@ -148,6 +152,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         expected_signature = hmac.new(self.secret_key, data, sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected_signature):
+            print(5)
             return False
 
         # 防止重放攻击

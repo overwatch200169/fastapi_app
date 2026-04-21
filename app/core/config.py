@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     #database
     sqlite_file_name = "database.db"
     sqlite_url = f"sqlite:///./{sqlite_file_name}"
+    mysql_url = "mysql+pymysql://root:root@127.0.0.1:3306/fastapi?charset=utf8mb4"
 
     connect_args = {"check_same_thread": False}
     #email
