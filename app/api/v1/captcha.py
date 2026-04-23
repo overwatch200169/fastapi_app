@@ -4,12 +4,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 
 from app.dependencies.captcha import get_captcha_dep
+from app.models.base import CaptchaVerify
 
 router=APIRouter(tags=['captcha'])
 @router.get('/')
 async def get_captcha(service:get_captcha_dep):
     try:
-        captcha_id,img_bytes,captcha_code=service.generate_captcha_img()
+        captcha_id,img_bytes,captcha_code=await service.generate_captcha_img()
         print(f"生成验证码: ID={captcha_id}, Code={captcha_code}")
 
         # 返回图片
@@ -25,10 +26,11 @@ async def get_captcha(service:get_captcha_dep):
         )
     except Exception as e:
         raise HTTPException(500, f"生成验证码失败: {str(e)}")
+        # raise  e
 
 @router.post('/verify_test')
-async def test_verify(user_input:str,captcha_id:str,verify:get_captcha_dep):
-    if not verify.verify_captcha(input_captcha=user_input,captcha_id=captcha_id):
+async def test_verify(captcha:CaptchaVerify,verify:get_captcha_dep):
+    if not await verify.verify_captcha(input_captcha=captcha.captcha_code,captcha_id=captcha.captcha_id):
         raise HTTPException(500, f"认证失败")
     return{'status':'认证成功'}
 
