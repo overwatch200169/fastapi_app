@@ -8,6 +8,12 @@ import hmac
 import time
 from hashlib import sha256
 from typing import Set, Optional
+from fastapi import Depends,Request
+
+
+import redis.asyncio as redis
+
+
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -21,14 +27,14 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             header_name: str = "X-CSRF-Token",
             exempt_paths: Optional[list] = None,
             exempt_user_agents: Optional[list] = None,
-            max_age: int = 3600
+
     ):
         super().__init__(app)
         self.secret_key = secret_key.encode()
         self.cookie_name = cookie_name
         self.header_name = header_name
-        self.max_age = max_age
-        self.used_tokens: Set[str] = set()
+        # self.max_age = max_age
+        # self.used_tokens: Set[str] = set()
 
         # 默认豁免的路径
         self.exempt_paths = exempt_paths or [
@@ -76,6 +82,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     #     return response
     async def dispatch(self, request: Request, call_next) -> Response:
         # 为每个请求生成唯一跟踪ID
+        client=request.app.state.redis
         import uuid
         if not hasattr(request.state, 'request_trace_id'):
             request.state.request_trace_id = str(uuid.uuid4())[:8]
@@ -93,7 +100,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             if not self._requires_csrf_protection(request):
                 response = await call_next(request)
                 if request.method == "GET":
-                    self._set_csrf_cookie(response, request)
+                    await self._set_csrf_cookie(client,response, request)
                 print(f"[CSRF {trace_id}] GET请求完成: 状态{response.status_code}")
                 return response
 
@@ -102,7 +109,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             csrf_header = request.headers.get(self.header_name)
 
             print(f"[CSRF {trace_id}] 验证Token...")
-            verify_result = self._verify_csrf_token(csrf_cookie, csrf_header)
+            verify_result = await self._verify_csrf_token(client,csrf_cookie, csrf_header)
 
             if not verify_result:
                 print(f"[CSRF {trace_id}] 验证失败，返回403")
@@ -145,7 +152,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         return True
 
-    def _generate_csrf_token(self) -> str:
+    async def _generate_csrf_token(self) -> str:
         """生成 CSRF Token"""
         # 生成随机 Token
         token = secrets.token_urlsafe(32)
@@ -216,8 +223,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
     #
     #     return True
 
-    def _verify_csrf_token(
+    async def _verify_csrf_token(
             self,
+            redis_client:redis.Redis,
             cookie_token: Optional[str],
             header_token: Optional[str],
     ) -> bool:
@@ -242,24 +250,24 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         token, timestamp_str, signature = parts
 
-        # 验证时间戳
-        try:
-            timestamp = int(timestamp_str)
-            current_time = int(time.time())
-
-            # 检查是否过期
-            if current_time - timestamp > self.max_age:
-                print(f"[CSRF验证失败] 原因4: Token过期")
-                print(f"  生成时间: {timestamp} ({time.ctime(timestamp)})")
-                print(f"  当前时间: {current_time} ({time.ctime(current_time)})")
-                print(f"  时间差: {current_time - timestamp}秒, 最大允许: {self.max_age}秒")
-                return False
-        except ValueError:
-            print(f"[CSRF验证失败] 原因5: 时间戳格式错误 - {timestamp_str}")
-            return False
+        # # 验证时间戳
+        # try:
+        #     timestamp = int(timestamp_str)
+        #     current_time = int(time.time())
+        #
+        #     # 检查是否过期
+        #     if current_time - timestamp > self.max_age:
+        #         print(f"[CSRF验证失败] 原因4: Token过期")
+        #         print(f"  生成时间: {timestamp} ({time.ctime(timestamp)})")
+        #         print(f"  当前时间: {current_time} ({time.ctime(current_time)})")
+        #         print(f"  时间差: {current_time - timestamp}秒, 最大允许: {self.max_age}秒")
+        #         return False
+        # except ValueError:
+        #     print(f"[CSRF验证失败] 原因5: 时间戳格式错误 - {timestamp_str}")
+        #     return False
 
         # 验证签名
-        data = f"{token}:{timestamp}".encode()
+        data = f"{token}:{timestamp_str}".encode()
         expected_signature = hmac.new(self.secret_key, data, sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected_signature):
@@ -269,41 +277,76 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             return False
 
         # 防止重放攻击
-        if cookie_token in self.used_tokens:
-            print(f"[CSRF验证失败] 原因7: Token已使用 - used_tokens集合大小: {len(self.used_tokens)}")
+        #Lua 脚本检查并删除token
+        print("开始删除使用后的token")
+        key = f"csrf:{cookie_token}"
+        print(key)
+
+
+        script = """
+            if redis.call('exists', KEYS[1]) == 1 then
+                redis.call('del', KEYS[1])
+                return 1
+            else
+                return 0
+            end
+            """
+
+        result = await redis_client.eval(script, 1, key)
+        if result!=1:
             return False
-
-        # 标记为已使用
-        self.used_tokens.add(cookie_token)
-        print(f"[CSRF验证成功] Token验证通过，已添加到used_tokens")
-
-        # 清理过期的 Token
-        self._cleanup_used_tokens()
+        # if cookie_token in self.used_tokens:
+        #     print(f"[CSRF验证失败] 原因7: Token已使用 - used_tokens集合大小: {len(self.used_tokens)}")
+        #     return False
+        #
+        # # 标记为已使用
+        # await self.client.delete(cookie_token)
+        # # self.used_tokens.add(cookie_token)
+        #
+        # print(f"[CSRF验证成功] Token验证通过，已添加到used_tokens")
+        #
+        # # # 清理过期的 Token
+        # # self._cleanup_used_tokens()
+        #过期token会自动清除
 
         return True
     def _cleanup_used_tokens(self):
         """清理过期的已使用 Token"""
-        current_time = int(time.time())
+        # current_time = int(time.time())
+        #
+        # # 找出过期的 Token
+        # expired = set()
+        # for token in self.used_tokens:
+        #     parts = token.split(":")
+        #     if len(parts) == 3:
+        #         try:
+        #             timestamp = int(parts[1])
+        #             if current_time - timestamp > self.max_age:
+        #                 expired.add(token)
+        #         except ValueError:
+        #             expired.add(token)
+        #
+        # # 移除过期的 Token
+        # self.used_tokens -= expired
 
-        # 找出过期的 Token
-        expired = set()
-        for token in self.used_tokens:
-            parts = token.split(":")
-            if len(parts) == 3:
-                try:
-                    timestamp = int(parts[1])
-                    if current_time - timestamp > self.max_age:
-                        expired.add(token)
-                except ValueError:
-                    expired.add(token)
+    async def store_csrf_token(self, client:redis.Redis, token: str) -> bool:
+        """存储 CSRF Token，如果不存在则存储"""
+        key = f"csrf:{token}"
 
-        # 移除过期的 Token
-        self.used_tokens -= expired
+        # SET key value NX EX seconds
+        result = await client.set(name=key, value="1", nx=True, ex=3600)
+        print('将csrf token 存储到redis', result)
+        # 返回 True 表示成功存储（之前不存在）
+        return result is True
 
-    def _set_csrf_cookie(self, response: Response, request: Request):
+    async def _set_csrf_cookie(self,client:redis.Redis, response: Response, request: Request):
         """设置 CSRF Cookie"""
         # 生成新的 Token
-        token = self._generate_csrf_token()
+        token = await self._generate_csrf_token()
+        result=await self.store_csrf_token(client,token)
+
+        if not result:
+            return False
 
         # 设置 Cookie
         response.set_cookie(
@@ -312,6 +355,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             httponly=False,  # 允许前端读取
             secure=request.url.scheme == "https",
             samesite="strict",
-            max_age=self.max_age,
+            # max_age=self.max_age,
             path="/"
         )
+        return True

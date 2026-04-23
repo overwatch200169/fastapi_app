@@ -1,5 +1,6 @@
 from contextlib import asynccontextmanager
 
+import redis.asyncio as redis
 from fastapi import FastAPI
 from sqlmodel import SQLModel
 
@@ -8,6 +9,8 @@ from .api import api_router
 from .core.captcha_img import CaptchaManager
 from .core.config import settings
 from .core.es_client import create_es_connection,get_es_connection
+from .core.in_memory_storage import MemoryStorage
+from .core.redis_storage import RedisStorage
 from .middleware.csrf import CSRFMiddleware
 from .models.databases import engine
 from .services.es_init import init_es_indexes
@@ -28,8 +31,20 @@ def create_db_and_tables():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    storage_type = 'redis'
+
+    if storage_type == "redis":
+        redis_client = redis.Redis(host="localhost", decode_responses=True)
+        app.state.redis=redis_client
+        store = RedisStorage(redis_client)
+        print("✅ Using Redis Store")
+    else:
+        store = MemoryStorage()
+        print("⚠️ Using Memory Store (Dev Only)")
     print("创建验证码管理器")
-    app.state.captcha_manager=CaptchaManager()
+    print(store)
+
+    app.state.captcha_manager=CaptchaManager(store)
     create_db_and_tables()
     # 启动时：创建Elasticsearch连接
     create_es_connection()
