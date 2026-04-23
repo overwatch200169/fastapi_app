@@ -1,10 +1,10 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlmodel import SQLModel
 
 class UserBase(SQLModel):
-    username: str
+    username: str =Field(min_length=1)
     email: str
 
 class UserProfileBase(SQLModel):
@@ -27,3 +27,7 @@ class ContactMe(BaseModel):
     mail_text:str| None = None
     captcha_id:str
     captcha_code: str
+
+class CaptchaVerify(BaseModel):
+    captcha_code:str
+    captcha_id:str
