@@ -7,10 +7,14 @@ from typing import Tuple, Optional
 import hashlib
 import secrets
 
+from app.core.storage import CaptchaStorage
+
+
 class CaptchaManager:
-    def __init__(self):
-        self._storage={}
-    def generate_captcha_img(self,length=4,width=200,height=80):
+    def __init__(self,store:CaptchaStorage):
+        # self._storage={}
+        self._store=store
+    async def generate_captcha_img(self,length=4,width=200,height=80):
         chars=string.ascii_uppercase.replace('O','').replace('I','')
         chars+=string.digits.replace('1','')
 
@@ -22,30 +26,29 @@ class CaptchaManager:
 
         img_bytes = image_data.getvalue()
         captcha_id=secrets.token_urlsafe(16)
-        self._storage[captcha_id]={
+        print('captcha_id:',captcha_id)
+        await self._store.set(key=captcha_id,code=captcha_code,ttl=120)
 
 
-            'captcha_code':captcha_code,
-            'expires_at': datetime.now() + timedelta(minutes=5),
-
-        }
-        print(self._storage[captcha_id])
+        # print(self._store[captcha_id])
         return captcha_id,img_bytes,captcha_code
 
 
-    def verify_captcha(self,input_captcha,captcha_id):
-        if captcha_id not in self._storage:
-            return False
-        data=self._storage[captcha_id]
-        print('1',data)
-        if datetime.now()>data['expires_at']:
-            del self._storage[captcha_id]
-            return False
-        if input_captcha.upper() !=data['captcha_code']:
-            del self._storage[captcha_id]
+    async def verify_captcha(self,input_captcha,captcha_id):
+        stored_code=await self._store.get(captcha_id)
+        if input_captcha != stored_code:
+            await self._store.delete(captcha_id)
             return False
 
-        del self._storage[captcha_id]
+        # print('1',data)
+        # if datetime.now()>data['expires_at']:
+        #     del self._storage[captcha_id]
+        #     return False
+        # if input_captcha.upper() !=data['captcha_code']:
+        #     del self._storage[captcha_id]
+        #     return False
+
+        await self._store.delete(captcha_id)
         return True
 
 # captcha_manager = CaptchaManager()
