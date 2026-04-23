@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, EmailStr
 
 from app.models.base import UserBase, UserProfileBase
 
@@ -13,7 +13,7 @@ class UserPublic(UserBase):
 
 
 class UserCreate(UserBase):
-    email: str | None
+    email: EmailStr
     password: str
     level: int | None
 
