@@ -56,7 +56,8 @@ class UserService:
         return True
 
     def read_user_profile(self,user_id:int):
-        user_profile=self.session.get(UserProfile,user_id)
+        # user_profile=self.session.get(UserProfile,user_id)
+        user_profile = self.session.exec(select(UserProfile).where(UserProfile.user_id==user_id) ).first()
         if not user_profile:
             return False
         return user_profile
