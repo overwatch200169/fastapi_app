@@ -1,8 +1,7 @@
 from typing import Annotated
 from datetime import datetime, timezone
 from fastapi import Query, HTTPException
-from sqlmodel import Session, select
-
+from sqlmodel import Session, select, desc
 
 from app.models import Article
 from app.schemas.articles import ArticleCreate, ArticleSearch, ArticleUpdate
@@ -20,12 +19,12 @@ class ArticleService:
         return articles
 
 
-    def list_articles(self,user_level: int=None,offset:int=0,limit:Annotated[int,Query(le=100)]=100):
+    def list_articles(self,user_level: int=None,offset:int=0,limit:Annotated[int,Query(le=100)]=50):
 
         if user_level!=0:
-            articles=self.session.exec(select(Article).where(Article.alive==True).offset(offset).limit(limit)).all()
+            articles=self.session.exec(select(Article).where(Article.alive==True).order_by(desc(Article.create_time)).offset(offset).limit(limit)).all()
         else:
-            articles = self.session.exec(select(Article).offset(offset).limit(limit)).all()
+            articles = self.session.exec(select(Article).order_by(desc(Article.create_time)).offset(offset).limit(limit)).all()
         return articles
 
     def read_article(self,article_id:int):
