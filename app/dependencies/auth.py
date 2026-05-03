@@ -79,13 +79,16 @@ async def refresh_access_token(token:Annotated[dict, Depends(get_token)],current
         email=payload.get('sub')
         type = payload.get('type')
         if email is None or type !='refresh':
+            print("DEBUG: Token 中缺失 sub/email 或type")
             raise credentials_exception
 
     except InvalidTokenError:
+        print("DEBUG: JWT 解码失败或已过期")  # 这里的 InvalidTokenError 包含了过期
         raise credentials_exception
 
     user = current_active_user
     if user.email != email:
+        print(f"DEBUG: 用户不匹配! 当前活跃用户: {current_active_user.email}, Token 指向: {email}")
         raise credentials_exception
     new_access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     new_access_token = create_access_token(data={"sub": user.email}, expires_delta=new_access_token_expires)
