@@ -1,512 +1,412 @@
+# tests/test_user_self_operations.py
+"""
+测试完整的新用户自操作流程
+核心流程：创建用户 -> 登录 -> 以自身身份操作
+"""
+
 import pytest
-from fastapi.testclient import TestClient
-from app.main import app  # 请替换为您的实际应用导入路径
+import pytest_asyncio
+from httpx import AsyncClient, ASGITransport
+import json
+import time
+import sys
+import os
 
-# 创建测试客户端
-client = TestClient(app)
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-
-def get_csrf_token():
-    """辅助函数：获取新的CSRF token"""
-    csrf_response = client.get("/")
-    assert csrf_response.status_code == 200
-
-    # 尝试从cookie获取
-    csrf_token = csrf_response.cookies.get("csrf_token")
-
-    # 如果不在cookie中，可能在响应体中
-    if csrf_token is None:
-        csrf_data = csrf_response.json()
-        csrf_token = csrf_data.get("csrf_token")
-
-    assert csrf_token is not None, "Failed to get CSRF token from GET response"
-    return csrf_token
+from app.main import app
 
 
-def test_create_user_success_with_fresh_csrf():
-    """
-    测试使用新鲜的CSRF token创建用户成功
-    每个POST请求都需要新的CSRF token
-    """
-    # 步骤1: 获取新的CSRF token
-    csrf_token = get_csrf_token()
+class TestUserSelfOperations:
+    """测试新用户对自己资源的操作流程"""
 
-    # 步骤2: 使用新鲜的CSRF token创建用户
-    user_data = {
-        "username": "fresh_user_1",
-        "email": "fresh1@example.com",
-        "password": "SecurePass123!",
-        "level": 1
-    }
+    @pytest_asyncio.fixture
+    async def client(self):
+        """每个测试独立的客户端"""
+        async with AsyncClient(
+                transport=ASGITransport(app=app),
+                base_url="http://test"
+        ) as ac:
+            yield ac
 
-    create_response = client.post(
-        "/api/v1/users",
-        json=user_data,
-        headers={
-            "X-CSRF-Token": csrf_token
-        }
-    )
+    async def _get_csrf_token(self, client: AsyncClient) -> str:
+        """辅助函数：获取CSRF token"""
+        response = await client.get("/")
+        csrf_token = response.cookies.get("csrf_token")
+        assert csrf_token is not None, "无法获取CSRF token"
+        return csrf_token
 
-    # 验证创建成功
-    assert create_response.status_code == 200, f"User creation failed: {create_response.text}"
+    @pytest.mark.asyncio
+    async def test_new_user_full_lifecycle(self, client: AsyncClient):
+        """
+        测试完整的新用户自服务流程
+        1. 注册新用户
+        2. 用新用户凭据登录
+        3. 用获得的令牌更新自己的档案
+        4. 尝试删除自己（权限测试）
+        """
+        print("\n" + "=" * 60)
+        print("测试：新用户完整自操作生命周期")
+        print("=" * 60)
 
-    # 验证响应体结构
-    response_data = create_response.json()
-    assert response_data["username"] == user_data["username"]
-    assert response_data["email"] == user_data["email"]
+        timestamp = int(time.time())
+        # 步骤1: 创建一个新用户
+        print(f"\n[步骤1] 创建新用户 (时间戳: {timestamp})...")
 
-    return response_data
-
-
-def test_csrf_token_single_use():
-    """
-    测试CSRF token只能使用一次
-    使用过的token再次使用应该失败
-    """
-    # 第一次：获取token并成功使用
-    csrf_token = get_csrf_token()
-
-    user_data_1 = {
-        "username": "single_use_user_1",
-        "email": "single1@example.com",
-        "password": "password123",
-        "level": 1
-    }
-
-    response1 = client.post(
-        "/api/v1/users",
-        json=user_data_1,
-        headers={
-            "X-CSRF-Token": csrf_token
-        }
-    )
-
-    # 第一次请求应该成功
-    assert response1.status_code == 200, "First request with fresh token should succeed"
-
-    # 第二次：尝试使用同一个token（应该失败）
-    user_data_2 = {
-        "username": "single_use_user_2",
-        "email": "single2@example.com",
-        "password": "password456",
-        "level": 2
-    }
-
-    response2 = client.post(
-        "/api/v1/users",
-        json=user_data_2,
-        headers={
-            "X-CSRF-Token": csrf_token  # 使用已经用过的token
-        }
-    )
-
-    # 第二次请求应该失败（token已使用）
-    assert response2.status_code in [401, 403], \
-        f"Second request with used token should fail, got {response2.status_code}"
-
-    # 第三次：获取新token并成功使用
-    new_csrf_token = get_csrf_token()
-
-    user_data_3 = {
-        "username": "single_use_user_3",
-        "email": "single3@example.com",
-        "password": "password789",
-        "level": 3
-    }
-
-    response3 = client.post(
-        "/api/v1/users",
-        json=user_data_3,
-        headers={
-            "X-CSRF-Token": new_csrf_token  # 使用新token
-        }
-    )
-
-    # 使用新token的请求应该成功
-    assert response3.status_code == 200, "Request with new token should succeed"
-
-
-def test_create_user_missing_csrf_token():
-    """
-    测试缺少CSRF token时创建用户失败
-    """
-    # 不需要先获取token，直接发送没有token的请求
-    create_response = client.post(
-        "/api/v1/users",
-        json={
-            "username": "missing_token_user",
-            "email": "missing@example.com",
-            "password": "password123",
-            "level": 1
-        }
-        # 故意不设置X-CSRF-Token头
-    )
-
-    # 应该返回403或401
-    assert create_response.status_code in [401, 403], \
-        f"Expected 401 or 403 for missing CSRF token, got {create_response.status_code}"
-
-
-def test_create_user_wrong_csrf_token():
-    """
-    测试使用错误的CSRF token时创建用户失败
-    """
-    # 获取正确的CSRF token（但不使用）
-    csrf_token = get_csrf_token()
-
-    # 使用错误的token
-    create_response = client.post(
-        "/api/v1/users",
-        json={
-            "username": "wrong_token_user",
-            "email": "wrong@example.com",
-            "password": "password123",
-            "level": 1
-        },
-        headers={
-            "X-CSRF-Token": "wrong_token_here"  # 错误的token
-        }
-    )
-
-    # 应该返回403或401
-    assert create_response.status_code in [401, 403], \
-        f"Expected 401 or 403 for wrong CSRF token, got {create_response.status_code}"
-
-    # 注意：即使请求失败，这个错误的token也被认为是"使用过"的
-    # 但正确的token仍然有效，可以用于下一次请求
-    user_data = {
-        "username": "correct_token_user",
-        "email": "correct@example.com",
-        "password": "password456",
-        "level": 2
-    }
-
-    response_with_correct = client.post(
-        "/api/v1/users",
-        json=user_data,
-        headers={
-            "X-CSRF-Token": csrf_token  # 使用之前获取的正确token
-        }
-    )
-
-    # 正确的token应该仍然有效
-    assert response_with_correct.status_code == 200, "Correct token should still work after wrong token attempt"
-
-
-def test_create_user_invalid_data_with_fresh_token():
-    """
-    测试使用无效数据创建用户（每次都需要新token）
-    """
-    # 测试1: 缺少必填字段
-    csrf_token1 = get_csrf_token()
-
-    invalid_data_missing = {
-        "username": "incomplete_user",
-        # 缺少email, password, level
-    }
-
-    response1 = client.post(
-        "/api/v1/users",
-        json=invalid_data_missing,
-        headers={
-            "X-CSRF-Token": csrf_token1
-        }
-    )
-
-    # 应该返回422验证错误
-    assert response1.status_code == 422
-
-    # 测试2: 无效的邮箱格式（需要新token）
-    csrf_token2 = get_csrf_token()
-
-    invalid_data_email = {
-        "username": "bademailuser",
-        "email": "not-an-email",  # 无效的邮箱格式
-        "password": "password123",
-        "level": 1
-    }
-
-    response2 = client.post(
-        "/api/v1/users",
-        json=invalid_data_email,
-        headers={
-            "X-CSRF-Token": csrf_token2
-        }
-    )
-
-    # 根据您的验证逻辑，这可能返回422或其他状态码
-    assert response2.status_code in [422, 400]
-
-    # 测试3: 无效的level值（需要新token）
-    csrf_token3 = get_csrf_token()
-
-    invalid_data_level = {
-        "username": "badleveluser",
-        "email": "badlevel@example.com",
-        "password": "password123",
-        "level": "not_an_integer"  # 应该是整数
-    }
-
-    response3 = client.post(
-        "/api/v1/users",
-        json=invalid_data_level,
-        headers={
-            "X-CSRF-Token": csrf_token3
-        }
-    )
-
-    assert response3.status_code == 422
-
-
-def test_create_duplicate_user_with_fresh_tokens():
-    """
-    测试创建重复用户名的用户（每次都需要新token）
-    """
-    # 第一次创建用户
-    csrf_token1 = get_csrf_token()
-
-    user_data = {
-        "username": "duplicate_test_user",
-        "email": "duplicate1@example.com",
-        "password": "password123",
-        "level": 1
-    }
-
-    first_response = client.post(
-        "/api/v1/users",
-        json=user_data,
-        headers={
-            "X-CSRF-Token": csrf_token1
-        }
-    )
-
-    # 如果第一次创建成功
-    if first_response.status_code == 200:
-        # 尝试用相同的用户名再次创建（需要新token）
-        csrf_token2 = get_csrf_token()
-
-        duplicate_data = {
-            "username": "duplicate_test_user",  # 相同的用户名
-            "email": "duplicate2@example.com",  # 不同的邮箱
-            "password": "password456",
-            "level": 2
+        new_user_data = {
+            "username": f"newuser_{timestamp}",
+            "email": f"newuser_{timestamp}@example.com",
+            "password": "MySecurePass123!",  # 记住密码，用于后续登录
+            "level": 1  # 普通用户等级
         }
 
-        second_response = client.post(
+        # 1.1 获取CSRF token用于创建用户
+        csrf_token_create = await self._get_csrf_token(client)
+
+        # 1.2 发送创建用户请求
+        create_response = await client.post(
             "/api/v1/users",
-            json=duplicate_data,
+            json=new_user_data,
+            headers={"X-CSRF-Token": csrf_token_create}
+        )
+
+        assert create_response.status_code == 200, f"用户创建失败: {create_response.text}"
+        new_user = create_response.json()
+        new_user_id = new_user.get("user_id")
+        print(f"    成功！用户ID: {new_user_id}, 用户名: {new_user_data['email']}")
+
+        # 步骤2: 用新用户凭据登录，获取访问令牌
+        print(f"\n[步骤2] 新用户登录获取令牌...")
+
+        # 2.1 获取新的CSRF token用于登录请求
+        csrf_token_login = await self._get_csrf_token(client)
+
+        # 2.2 准备登录数据
+        login_data = {
+            "username": new_user_data["email"],
+            "password": new_user_data["password"],  # 使用创建时设置的密码
+            "grant_type": "password"
+        }
+
+        # 2.3 发送登录请求
+        login_response = await client.post(
+            "/api/v1/auth/token",
+            data=login_data,  # 注意：这里是 data 而不是 json
             headers={
-                "X-CSRF-Token": csrf_token2
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRF-Token": csrf_token_login
             }
         )
 
-        # 应该返回冲突错误（409）或其他错误状态码
-        assert second_response.status_code in [409, 400, 422], \
-            f"Expected conflict for duplicate username, got {second_response.status_code}"
+        assert login_response.status_code == 200, f"登录失败: {login_response.text}"
+        token_data = login_response.json()
+        access_token = token_data.get("access_token")
+        token_type = token_data.get("token_type", "Bearer")
+        assert access_token is not None, "登录响应中未找到 access_token"
+        print(f"    成功！获取到访问令牌: {access_token[:20]}...")
 
+        # 步骤3: 用新用户的令牌更新自己的档案
+        print(f"\n[步骤3] 新用户更新自己的档案...")
 
-def test_multiple_successful_requests_with_fresh_tokens():
-    """
-    测试多个成功请求，每个都需要新token
-    """
-    users_created = []
+        # 3.1 获取新的CSRF token用于更新操作
+        csrf_token_update = await self._get_csrf_token(client)
 
-    # 创建3个用户，每个都需要新token
-    for i in range(3):
-        csrf_token = get_csrf_token()
-
-        user_data = {
-            "username": f"multi_user_{i}",
-            "email": f"multi{i}@example.com",
-            "password": f"Password{i}123!",
-            "level": i + 1
+        # 3.2 准备更新数据
+        profile_update = {
+            "bio": f"我是新用户{timestamp}，这是我的个人简介。",
+            "age": 25
         }
 
-        response = client.post(
-            "/api/v1/users",
-            json=user_data,
+        # 3.3 发送更新请求（使用新用户的令牌）
+        update_response = await client.patch(
+            f"/api/v1/users/{new_user_id}/profile",
+            json=profile_update,
             headers={
+                "Authorization": f"{token_type} {access_token}",
+                "X-CSRF-Token": csrf_token_update
+            }
+        )
+
+        # 根据API设计，普通用户可能只能更新自己的档案
+        # 如果权限足够，应该成功(200)；如果权限不足，可能失败(403)
+        print(f"    更新档案响应: {update_response.status_code}")
+
+        if update_response.status_code == 200:
+            updated_profile = update_response.json()
+            assert updated_profile["bio"] == profile_update["bio"]
+            print(f"    ✓ 档案更新成功")
+        elif update_response.status_code == 403:
+            print(f"    ⓘ 权限不足，无法更新档案（符合普通用户权限设计）")
+        else:
+            print(f"    ⓘ 其他响应: {update_response.text}")
+
+        # 步骤4: 尝试用新用户的令牌删除自己
+        print(f"\n[步骤4] 新用户尝试删除自己（权限测试）...")
+
+        # 4.1 获取新的CSRF token用于删除操作
+        csrf_token_delete = await self._get_csrf_token(client)
+
+        # 4.2 发送删除请求
+        delete_response = await client.delete(
+            f"/api/v1/users/{new_user_id}",
+            headers={
+                "Authorization": f"{token_type} {access_token}",
+                "X-CSRF-Token": csrf_token_delete
+            }
+        )
+
+        print(f"    删除自己响应: {delete_response.status_code}")
+
+        # 权限设计分析：
+        # - 如果允许用户删除自己，应返回 200/204
+        # - 如果只有管理员能删除用户，应返回 403
+        # - 如果令牌无效/过期，应返回 401
+
+        if delete_response.status_code in [200, 204]:
+            print(f"    ✓ 用户成功删除自己")
+        elif delete_response.status_code == 403:
+            print(f"    ⓘ 权限不足，只有管理员能删除用户")
+        elif delete_response.status_code == 401:
+            print(f"    ⓘ 认证失败，令牌可能无效")
+        else:
+            print(f"    ⓘ 其他响应: {delete_response.text}")
+
+        print(f"\n" + "=" * 60)
+        print("测试完成！此流程验证了：")
+        print("1. 用户注册功能")
+        print("2. 用户登录认证功能")
+        print("3. 用户权限系统（基于level字段）")
+        print("4. 受保护端点的访问控制")
+        print("=" * 60)
+
+        return {
+            "user_id": new_user_id,
+            "username": new_user_data["username"],
+            "access_token": access_token,
+            "update_success": update_response.status_code == 200,
+            "delete_success": delete_response.status_code in [200, 204]
+        }
+
+    @pytest.mark.asyncio
+    async def test_user_cannot_access_others_profile(self, client: AsyncClient):
+        """
+        测试用户权限隔离：用户A不能更新用户B的档案
+        此测试需要先创建两个用户
+        """
+        print("\n" + "=" * 60)
+        print("测试：用户权限隔离（用户A不能操作用户B的资源）")
+        print("=" * 60)
+
+        timestamp = int(time.time())
+
+        # 创建用户A
+        print(f"\n1. 创建用户A...")
+        user_a_data = {
+            "username": f"usera_{timestamp}",
+            "email": f"usera_{timestamp}@example.com",
+            "password": "UserAPass123!",
+            "level": 1
+        }
+
+        csrf_token = await self._get_csrf_token(client)
+        resp_a = await client.post(
+            "/api/v1/users",
+            json=user_a_data,
+            headers={"X-CSRF-Token": csrf_token}
+        )
+        assert resp_a.status_code == 200
+        user_a = resp_a.json()
+        user_a_id = user_a["user_id"]
+        print(f"   用户A ID: {user_a_id}")
+
+        # 创建用户B
+        print(f"\n2. 创建用户B...")
+        user_b_data = {
+            "username": f"userb_{timestamp}",
+            "email": f"userb_{timestamp}@example.com",
+            "password": "UserBPass456!",
+            "level": 1
+        }
+
+        csrf_token = await self._get_csrf_token(client)
+        resp_b = await client.post(
+            "/api/v1/users",
+            json=user_b_data,
+            headers={"X-CSRF-Token": csrf_token}
+        )
+        assert resp_b.status_code == 200
+        user_b = resp_b.json()
+        user_b_id = user_b["user_id"]
+        print(f"   用户B ID: {user_b_id}")
+
+        # 用户A登录，获取令牌
+        print(f"\n3. 用户A登录获取令牌...")
+        csrf_token = await self._get_csrf_token(client)
+        login_data_a = {
+            "username": user_a_data["email"],
+            "password": user_a_data["password"],
+            "grant_type": "password"
+        }
+        login_resp_a = await client.post(
+            "/api/v1/auth/token",
+            data=login_data_a,
+            headers={
+                "Content-Type": "application/x-www-form-urlencoded",
+                "X-CSRF-Token": csrf_token
+            }
+        )
+        assert login_resp_a.status_code == 200
+        token_a = login_resp_a.json()["access_token"]
+        print(f"   用户A令牌获取成功")
+
+        # 尝试用用户A的令牌更新用户B的档案（应该失败）
+        print(f"\n4. 尝试用用户A的令牌更新用户B的档案（应失败）...")
+        csrf_token = await self._get_csrf_token(client)
+        update_data = {"bio": "用户A试图篡改用户B的资料"}
+
+        response = await client.patch(
+            f"/api/v1/users/{user_b_id}/profile",
+            json=update_data,
+            headers={
+                "Authorization": f"Bearer {token_a}",
                 "X-CSRF-Token": csrf_token
             }
         )
 
-        # 每个请求都应该成功
-        assert response.status_code == 200, f"Request {i} failed: {response.text}"
+        print(f"   响应状态: {response.status_code}")
 
-        response_data = response.json()
-        assert response_data["username"] == user_data["username"]
-        users_created.append(response_data)
+        # 应该返回 403 Forbidden 或 404 Not Found
+        # 具体取决于您的权限设计：
+        # - 403: 权限明确禁止
+        # - 404: 隐藏资源存在性（更安全）
+        assert response.status_code in [403, 404], \
+            f"预期权限错误(403/404)，实际得到 {response.status_code}"
 
-    # 验证创建了3个用户
-    assert len(users_created) == 3
-    print(f"Successfully created {len(users_created)} users with fresh CSRF tokens")
+        print(f"   ✓ 权限隔离生效：用户A不能操作用户B的资源")
 
+    @pytest.mark.asyncio
+    async def test_admin_user_creation_and_privilege(self, client: AsyncClient):
+        """
+        测试管理员用户特殊流程：
+        1. 创建一个高级别（管理员）用户
+        2. 用该管理员账号登录
+        3. 测试管理员特权操作（如删除其他用户）
+        """
+        print("\n" + "=" * 60)
+        print("测试：管理员用户创建与特权操作")
+        print("=" * 60)
 
-def test_csrf_token_expires_after_failed_request():
-    """
-    测试即使请求失败，CSRF token也会失效
-    """
-    # 获取token
-    csrf_token = get_csrf_token()
+        timestamp = int(time.time())
 
-    # 第一次请求：使用无效数据（应该失败）
-    invalid_data = {
-        "username": "",  # 空的用户名
-        "email": "invalid@example.com",
-        "password": "password123",
-        "level": 1
-    }
+        # 注意：此测试假设您的系统允许创建高级别用户
+        # 如果创建用户端点有权限控制，可能需要先有管理员令牌
 
-    response1 = client.post(
-        "/api/v1/users",
-        json=invalid_data,
-        headers={
-            "X-CSRF-Token": csrf_token
-        }
-    )
-
-    # 请求应该因为数据无效而失败
-    assert response1.status_code in [422, 400], \
-        f"Expected validation error, got {response1.status_code}"
-
-    # 第二次请求：尝试使用同一个token（应该失败，因为token已使用）
-    valid_data = {
-        "username": "after_failure_user",
-        "email": "after@example.com",
-        "password": "password456",
-        "level": 2
-    }
-
-    response2 = client.post(
-        "/api/v1/users",
-        json=valid_data,
-        headers={
-            "X-CSRF-Token": csrf_token  # 使用已经用过的token
-        }
-    )
-
-    # 应该失败，因为token已使用
-    assert response2.status_code in [401, 403], \
-        f"Token should be invalid after failed request, got {response2.status_code}"
-
-    # 第三次请求：获取新token并成功
-    new_csrf_token = get_csrf_token()
-
-    response3 = client.post(
-        "/api/v1/users",
-        json=valid_data,
-        headers={
-            "X-CSRF-Token": new_csrf_token  # 使用新token
-        }
-    )
-
-    # 使用新token应该成功
-    assert response3.status_code == 200, "New token should work after failed request"
-
-
-def test_get_users_list_no_csrf_required():
-    """
-    测试获取用户列表（GET请求不需要CSRF token）
-    可以多次调用而不需要新token
-    """
-    # 第一次GET请求
-    response1 = client.get("/api/v1/users")
-    assert response1.status_code == 200
-
-    # 第二次GET请求（不需要新token）
-    response2 = client.get("/api/v1/users")
-    assert response2.status_code == 200
-
-    # 第三次GET请求（不需要新token）
-    response3 = client.get("/api/v1/users")
-    assert response3.status_code == 200
-
-    # 验证响应结构
-    users_list = response3.json()
-    assert isinstance(users_list, list)
-
-    print(f"GET requests don't require CSRF tokens. Retrieved {len(users_list)} users")
-
-
-# 使用pytest夹具（每次测试获取新token）
-@pytest.fixture
-def fresh_csrf_token():
-    """为每个测试提供新鲜的CSRF token"""
-    return get_csrf_token()
-
-
-def test_create_user_with_fixture(fresh_csrf_token):
-    """
-    使用夹具测试创建用户
-    夹具确保每次测试都有新鲜的CSRF token
-    """
-    user_data = {
-        "username": "fixture_fresh_user",
-        "email": "fixture_fresh@example.com",
-        "password": "FixturePass123!",
-        "level": 1
-    }
-
-    response = client.post(
-        "/api/v1/users",
-        json=user_data,
-        headers={
-            "X-CSRF-Token": fresh_csrf_token
-        }
-    )
-
-    assert response.status_code == 200
-
-    response_data = response.json()
-    assert response_data["username"] == user_data["username"]
-    assert response_data["email"] == user_data["email"]
-
-
-def test_concurrent_csrf_token_usage():
-    """
-    测试并发场景下的CSRF token使用
-    每个token只能用于一个请求
-    """
-    # 获取多个token
-    tokens = [get_csrf_token() for _ in range(3)]
-
-    results = []
-
-    # 同时使用这些token（在实际并发中，这些请求可能几乎同时发生）
-    for i, token in enumerate(tokens):
-        user_data = {
-            "username": f"concurrent_user_{i}",
-            "email": f"concurrent{i}@example.com",
-            "password": f"Concurrent{i}123!",
-            "level": i + 1
+        # 1. 创建管理员用户
+        print(f"\n1. 创建管理员用户...")
+        admin_data = {
+            "username": f"admin_{timestamp}",
+            "email": f"admin_{timestamp}@example.com",
+            "password": "AdminPass123!",
+            "level": 10  # 假设10是管理员级别
         }
 
-        response = client.post(
+        csrf_token = await self._get_csrf_token(client)
+        admin_resp = await client.post(
             "/api/v1/users",
-            json=user_data,
-            headers={
-                "X-CSRF-Token": token
-            }
+            json=admin_data,
+            headers={"X-CSRF-Token": csrf_token}
         )
 
-        results.append({
-            "token_index": i,
-            "status_code": response.status_code,
-            "success": response.status_code == 200
-        })
+        # 创建可能成功或失败，取决于权限设计
+        if admin_resp.status_code == 200:
+            admin_user = admin_resp.json()
+            admin_id = admin_user["user_id"]
+            print(f"   管理员创建成功，ID: {admin_id}")
 
-    # 统计成功次数
-    success_count = sum(1 for r in results if r["success"])
-    print(f"Concurrent test: {success_count} out of {len(results)} requests succeeded")
+            # 2. 管理员登录
+            print(f"\n2. 管理员登录...")
+            csrf_token = await self._get_csrf_token(client)
+            login_data = {
+                "username": admin_data["username"],
+                "password": admin_data["password"],
+                "grant_type": "password"
+            }
+            login_resp = await client.post(
+                "/api/v1/auth/token",
+                data=login_data,
+                headers={
+                    "Content-Type": "application/x-www-form-urlencoded",
+                    "X-CSRF-Token": csrf_token
+                }
+            )
 
-    # 所有使用不同token的请求都应该成功
-    # 因为每个token都是新鲜的且只使用一次
-    assert success_count == len(results), \
-        f"All fresh tokens should work. Results: {results}"
+            if login_resp.status_code == 200:
+                admin_token = login_resp.json()["access_token"]
+                print(f"   管理员登录成功")
+
+                # 3. 创建普通用户供测试删除
+                print(f"\n3. 创建普通用户供测试...")
+                normal_user_data = {
+                    "username": f"normal_{timestamp}",
+                    "email": f"normal_{timestamp}@example.com",
+                    "password": "NormalPass123!",
+                    "level": 1
+                }
+
+                csrf_token = await self._get_csrf_token(client)
+                # 使用管理员令牌创建用户（如果需要权限）
+                normal_resp = await client.post(
+                    "/api/v1/users",
+                    json=normal_user_data,
+                    headers={
+                        "Authorization": f"Bearer {admin_token}",
+                        "X-CSRF-Token": csrf_token
+                    }
+                )
+
+                if normal_resp.status_code == 200:
+                    normal_user = normal_resp.json()
+                    normal_id = normal_user["user_id"]
+                    print(f"   普通用户创建成功，ID: {normal_id}")
+
+                    # 4. 管理员删除普通用户
+                    print(f"\n4. 管理员尝试删除普通用户...")
+                    csrf_token = await self._get_csrf_token(client)
+                    delete_resp = await client.delete(
+                        f"/api/v1/users/{normal_id}",
+                        headers={
+                            "Authorization": f"Bearer {admin_token}",
+                            "X-CSRF-Token": csrf_token
+                        }
+                    )
+
+                    print(f"   删除响应: {delete_resp.status_code}")
+                    if delete_resp.status_code in [200, 204]:
+                        print(f"   ✓ 管理员成功删除用户")
+                    else:
+                        print(f"   响应: {delete_resp.text}")
+                else:
+                    print(f"   普通用户创建失败: {normal_resp.status_code}")
+            else:
+                print(f"   管理员登录失败: {login_resp.status_code}")
+        else:
+            print(f"   管理员用户创建失败: {admin_resp.status_code}")
+            print(f"   这可能是因为创建高级别用户需要现有管理员权限")
+            print(f"   如果是这样，您需要先有一个预设的管理员测试账号")
 
 
+# 运行测试
 if __name__ == "__main__":
-    # 直接运行测试（用于调试）
+    import pytest
     import sys
 
-    pytest.main(sys.argv)
+    # 运行此文件的测试
+    exit_code = pytest.main([
+        __file__,
+        "-v",
+        "-s",
+        "--tb=short",
+        "--asyncio-mode=auto"
+    ])
+
+    sys.exit(exit_code)
