@@ -9,7 +9,7 @@ from app.schemas.contact import EmailResponse
 async def send_email(mail:ContactMe) ->EmailResponse:
     try:
         sendAddress=settings.SEND_ADDRESS
-        password=settings.AUTH_PASSWORD
+        password=settings.EMAIL_AUTH_PASSWORD
         receivers=settings.RECEIVE_ADDRESS
         message=MIMEText(f'sender: {mail.sender_name},contact information:{mail.sender_email}, {mail.mail_text}','plain','utf-8')
         message["From"]=Header(sendAddress)
