@@ -19,7 +19,7 @@ class ArticleService:
         return articles
 
 
-    def list_articles(self,user_level: int=None,offset:int=0,limit:Annotated[int,Query(le=100)]=50):
+    def list_articles(self,user_level: int=None,offset:int=0,limit:Annotated[int,Query(le=1000)]=1000):
 
         if user_level!=0:
             articles=self.session.exec(select(Article).where(Article.alive==True).order_by(desc(Article.create_time)).offset(offset).limit(limit)).all()

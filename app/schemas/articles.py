@@ -20,6 +20,7 @@ class ArticleList(ArticleBase):
     title: str | None
     article_id:int |None
     tags: str | None
+    alive:bool | None
 
 class ArticleCreate(ArticleBase):
     title: str | None
