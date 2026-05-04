@@ -2,8 +2,6 @@ import secrets
 from datetime import timedelta, datetime, timezone
 
 import jwt
-from fastapi import HTTPException,status
-from jwt import InvalidTokenError
 from pwdlib import PasswordHash
 
 from app.core.config import settings
