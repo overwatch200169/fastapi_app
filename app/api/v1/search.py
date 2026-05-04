@@ -4,6 +4,7 @@ from typing import Optional, Annotated
 from elasticsearch.dsl import async_connections,  Q
 from fastapi import APIRouter, HTTPException, Query,logger
 
+from app.core.config import settings
 from app.models import Article
 from app.schemas.articles import ArticleSearch
 
@@ -173,26 +174,29 @@ async def monthly_status():
 @router.post("/create_test")
 async def create_article_test(article_data: Article):
     """创建文章（示例）"""
-    try:
-        # 创建文章文档
-        article = ArticleSearch()
-        article.article_id=article_data.article_id
-        article.title = article_data.title
-        article.body = article_data.body
-        article.alive = article_data.alive
-        article.author_id=article_data.author_id
-        article.create_time=datetime.now(timezone.utc)
-        article.updated_time=datetime.now(timezone.utc)
+    if settings.is_production:
+        raise HTTPException(404,'not found')
+    else:
+        try:
+            # 创建文章文档
+            article = ArticleSearch()
+            article.article_id=article_data.article_id
+            article.title = article_data.title
+            article.body = article_data.body
+            article.alive = article_data.alive
+            article.author_id=article_data.author_id
+            article.create_time=datetime.now(timezone.utc)
+            article.updated_time=datetime.now(timezone.utc)
 
 
-        # 保存到Elasticsearch
-        await article.save()
+            # 保存到Elasticsearch
+            await article.save()
 
-        return {
-            "message": "文章创建成功",
-            "id": article.meta.id,
-            "article_id": article.article_id
-        }
-    except Exception as e:
-        print(f"创建文章失败: {e}")
-        raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+            return {
+                "message": "文章创建成功",
+                "id": article.meta.id,
+                "article_id": article.article_id
+            }
+        except Exception as e:
+            print(f"创建文章失败: {e}")
+            raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
