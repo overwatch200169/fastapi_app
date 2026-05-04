@@ -2,7 +2,7 @@ from elasticsearch.dsl import async_connections
 
 from app.core.config import settings
 
-ES_HOSTS = [settings.ES_HOST]
+ES_HOSTS = [settings.ELASTICSEARCH_HOST]
 # ES_HOSTS = ['https://localhost:9200']
 
 def create_es_connection():
