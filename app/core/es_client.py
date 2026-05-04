@@ -3,6 +3,7 @@ from elasticsearch.dsl import async_connections
 from app.core.config import settings
 
 ES_HOSTS = [settings.ES_HOST]
+# ES_HOSTS = ['https://localhost:9200']
 
 def create_es_connection():
     """
@@ -14,7 +15,7 @@ def create_es_connection():
     async_connections.create_connection(
 
         hosts=ES_HOSTS,
-        basic_auth=('elastic', 'haXvzpyfpxPxSRHCCm3K'),  # 请替换‘您的密码’为实际密码
+        basic_auth=(settings.ES_AUTH, settings.ES_PASSWORD),  # 请替换‘您的密码’为实际密码
         # 对于自签名证书，在开发环境可以关闭验证
         verify_certs=False,
         # 您可以在此添加其他传递给 AsyncElasticsearch.__init__ 的参数，例如 timeout, sniff_on_start 等。

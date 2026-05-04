@@ -3,6 +3,7 @@ from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from apscheduler.triggers.interval import IntervalTrigger
 from sqlmodel import Session
 
+from app.core.config import settings
 from app.models.databases import get_session, engine
 from app.services.simple_sync import simple_article_sync
 from app.dependencies.database import SessionDep
@@ -40,7 +41,7 @@ async def run_article_sync():
             result = await simple_article_sync(
                 session=session,
                 es_client=es_client,
-                hours_back=1,
+                hours_back=settings.ES_SYNC_TIME,
                 use_upsert=True
             )
 

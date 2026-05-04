@@ -22,7 +22,7 @@ engine=create_engine(mysql_url,
                         pool_timeout=30,        # 获取连接超时（秒）
                         pool_recycle=3600,      # 1小时回收连接
                         pool_pre_ping=True,     #
-                     echo=True
+                     echo=settings.DEBUG
                     )
 
 def get_session():
