@@ -223,7 +223,7 @@ async def simple_article_sync(
         # ).order_by(Article.create_time.desc())
         #
         # results = session.exec(statement)
-        db_articles = get_recent_articles(session)
+        db_articles = get_recent_articles(session,last_sync_time=sync_start)
 
         logger.info(f"找到 {len(db_articles)} 篇需要同步的文章")
 

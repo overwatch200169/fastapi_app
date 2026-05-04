@@ -7,7 +7,7 @@ from fastapi import APIRouter, HTTPException, Query,logger
 from app.models import Article
 from app.schemas.articles import ArticleSearch
 
-router = APIRouter(prefix="/search", tags=["Elasticsearch"])
+router = APIRouter( tags=["Elasticsearch"])
 
 @router.get("/health")
 async def check_es_connection():
@@ -48,7 +48,7 @@ async def search_articles(
         q: Annotated[str|None, Query()]=None,
         author_id: Optional[int] = None,
         tags:Annotated[list[str]|None,Query()]=None,
-        alive: Annotated[bool|None,Query()] = None,
+        alive: Annotated[bool|None,Query()] = True,
         page: Annotated[int,Query(ge=1)]=1  ,
         size: Annotated[int,Query( ge=1, le=100)] = 10,
         date_year_month:Annotated[str,Query()]=None
