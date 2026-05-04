@@ -24,10 +24,11 @@ class Settings(BaseSettings):
     ES_HOST: str = "http://localhost:9200"
 
     #email
-    SEND_ADDRESS: str ='overvatch200019@163.com'
+    SEND_ADDRESS: str
     EMAIL_AUTH_PASSWORD: str
-    RECEIVE_ADDRESS: list =['1091587398@qq.com']
-    SMTP_HOST: str ='smtp.163.com'
+    RECEIVE_ADDRESS: list
+    SMTP_HOST: str
+    SMTP_PORT:int
 
     # 读取 .env 文件配置
     model_config = SettingsConfigDict(env_file="config_local.env",

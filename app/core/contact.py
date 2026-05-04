@@ -15,7 +15,7 @@ async def send_email(mail:ContactMe) ->EmailResponse:
         message["From"]=Header(sendAddress)
         message["To"]=Header(','.join(receivers))
 
-        async with aiosmtplib.SMTP(hostname=settings.SMTP_HOST,port=465,use_tls=True) as smtp:
+        async with aiosmtplib.SMTP(hostname=settings.SMTP_HOST,port=settings.SMTP_PORT,use_tls=True) as smtp:
 
             await smtp.login(sendAddress, password)
             await smtp.sendmail(sendAddress, receivers, message.as_string())
