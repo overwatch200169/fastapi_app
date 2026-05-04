@@ -34,7 +34,7 @@ async def lifespan(app: FastAPI):
     storage_type = 'redis'
 
     if storage_type == "redis":
-        redis_client = redis.Redis(host="localhost", decode_responses=True)
+        redis_client = redis.Redis(host=settings.REDIS_HOST,password=settings.REDIS_PASSWORD,port=settings.REDIS_PORT, decode_responses=True)
         app.state.redis=redis_client
         store = RedisStorage(redis_client)
         print("✅ Using Redis Store")

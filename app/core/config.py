@@ -21,9 +21,10 @@ class Settings(BaseSettings):
     MYSQL_DB: str = "fastapi"
 
     connect_args :dict = {"check_same_thread": False}
-
-    REDIS_PORT :int=6379
-    ES_HOST: str = "https://localhost:9200"
+    REDIS_HOST:str
+    REDIS_PORT :int
+    REDIS_PASSWORD:str
+    ELASTICSEARCH_HOST: str
     ES_AUTH:str
     ES_PASSWORD:str
 
