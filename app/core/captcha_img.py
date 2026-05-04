@@ -40,13 +40,6 @@ class CaptchaManager:
             await self._store.delete(captcha_id)
             return False
 
-        # print('1',data)
-        # if datetime.now()>data['expires_at']:
-        #     del self._storage[captcha_id]
-        #     return False
-        # if input_captcha.upper() !=data['captcha_code']:
-        #     del self._storage[captcha_id]
-        #     return False
 
         await self._store.delete(captcha_id)
         return True
