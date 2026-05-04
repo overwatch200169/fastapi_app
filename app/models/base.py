@@ -31,3 +31,8 @@ class ContactMe(BaseModel):
 class CaptchaVerify(BaseModel):
     captcha_code:str
     captcha_id:str
+
+class EsterEggBase(SQLModel):
+    name:str
+    birthday:datetime
+    homepage:str
