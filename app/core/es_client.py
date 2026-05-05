@@ -13,6 +13,7 @@ def create_es_connection():
     # 使用 'default' 作为连接的别名（alias），这是文档中示例的默认值。
     # 将 hosts 参数传递给底层的 AsyncElasticsearch 客户端。
     print('ES_HOSTS:',ES_HOSTS)
+    print('ES_PASSWORD',settings.ES_PASSWORD)
     async_connections.create_connection(
 
         hosts=ES_HOSTS,
