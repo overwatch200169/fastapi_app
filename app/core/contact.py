@@ -19,7 +19,7 @@ async def send_email(mail:ContactMe) ->EmailResponse:
 
             await smtp.login(sendAddress, password)
             await smtp.sendmail(sendAddress, receivers, message.as_string())
-        return EmailResponse(success=True)
+        return EmailResponse(success=True,message=f"邮件发送成功")
     except aiosmtplib.SMTPConnectError as e:
         return EmailResponse(success=False, message=f"连接邮件服务器失败: {str(e)}")
     except aiosmtplib.SMTPAuthenticationError as e:
