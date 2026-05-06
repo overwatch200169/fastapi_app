@@ -5,7 +5,7 @@ from typing import Optional
 class Settings(BaseSettings):
     #basic
     PROJECT_NAME :str= "My FastAPI App"
-    APP_ENV :str= 'development'
+    APP_ENV :str
     DEBUG :bool= True
     #securty
     SECRET_KEY :str
@@ -21,9 +21,9 @@ class Settings(BaseSettings):
     MYSQL_DB: str = "fastapi"
 
     connect_args :dict = {"check_same_thread": False}
-    REDIS_HOST:str
-    REDIS_PORT :int
-    REDIS_PASSWORD:str
+    REDIS_HOST:str='localhost'
+    REDIS_PORT :int=6379
+    REDIS_PASSWORD :Optional[str] = None
     ELASTICSEARCH_HOST: str
     ES_AUTH:str
     ES_PASSWORD:str

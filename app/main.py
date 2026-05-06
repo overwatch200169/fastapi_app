@@ -85,7 +85,7 @@ async def lifespan(app: FastAPI):
     print("FastAPI 应用关闭。")
 
 # 创建 FastAPI 应用，并注入生命周期
-app = FastAPI(lifespan=lifespan,title=settings.PROJECT_NAME,docs_url='/docs' if settings.is_production is None else None)
+app = FastAPI(lifespan=lifespan,title=settings.PROJECT_NAME,docs_url='/docs' if settings.is_production is False else None)
 
 
 # @app.on_event("startup")
