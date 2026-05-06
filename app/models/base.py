@@ -36,3 +36,7 @@ class EsterEggBase(SQLModel):
     name:str
     birthday:datetime
     homepage:str
+
+class CheckiCountBase(SQLModel):
+    name:str|None
+    cheki_count:int|None
