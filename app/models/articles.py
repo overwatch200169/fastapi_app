@@ -7,7 +7,7 @@ from app.models.base import ArticleBase
 class Article(ArticleBase,table=True):
     # 为复合查询创建索引：先过滤 alive，再按时间倒序
     __table_args__ = (
-        Index("idx_article_alive_time", "alive", "create_time"),
+        Index("idx_article_alive_create_time", "alive", "create_time"),
     )
     create_time:datetime=Field(default_factory=lambda: datetime.now(timezone.utc),index=True,nullable=False)
     updated_time: datetime = Field(default_factory=lambda: datetime.now(timezone.utc),index=True,nullable=False)
