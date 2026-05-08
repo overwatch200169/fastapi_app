@@ -2,6 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, HTTPException, Depends, UploadFile, Query
 
+from app.core.config import settings
 from app.dependencies.article import ArticleServiceDep
 from app.models import User
 from app.schemas.articles import ArticlePublic, ArticleList
@@ -81,5 +82,8 @@ async def update_user_profile(user_id:int,profile:UserProfileUpdate,service:User
 
 @router.post('/avatar',response_model=UserProfilePublic)
 async def upload_avatar(current_user:get_current_active_user_dep,service:UserServiceDep,file:UploadFile):
-    uploaded_avatar_profile=service.update_user_avatar(current_user,file)
-    return uploaded_avatar_profile
+    if settings.is_production:
+        raise HTTPException(404,'not found')
+    else:
+        uploaded_avatar_profile=service.update_user_avatar(current_user,file)
+        return uploaded_avatar_profile

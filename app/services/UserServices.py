@@ -76,7 +76,7 @@ class UserService:
         return user_profile_db
 
     def update_user_avatar(self,user,file:UploadFile):
-        avatar_url=upload_file(file).get('filename')
+        avatar_url=upload_file(file).get('url')
         profile=UserProfileUpdate(avatar_url=avatar_url)
         updated_profile=self.update_user_profile(user.user_id,profile)
         return updated_profile

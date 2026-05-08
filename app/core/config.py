@@ -37,6 +37,16 @@ class Settings(BaseSettings):
     SMTP_HOST: str
     SMTP_PORT:int
 
+    # R2 配置
+    R2_ACCESS_KEY_ID:str
+    R2_SECRET_ACCESS_KEY:str
+    R2_ENDPOINT_URL:str
+    BUCKET_NAME:str
+    # 公网访问域名 (在 R2 控制台绑定自己的域名或使用 dev 域名)
+    PUBLIC_URL_PREFIX:str
+
+    #上传文件类型校验
+    ALLOWED_FILE_TYPES:list
     # 读取 .env 文件配置
     model_config = SettingsConfigDict(env_file="config_local.env",
                                       env_file_encoding='utf-8',
