@@ -13,20 +13,20 @@ class ArticleService:
         self.session=session
 
     def list_articles_by_user(self,user_id: int,offset:int=0,limit:int=100):
-
+        count = self.session.exec(select(func.count(Article.article_id)).where(Article.alive == True).where(Article.author_id==user_id)).one()
         articles=self.session.exec(select(Article).where(Article.alive==True).where(Article.author_id==user_id).offset(offset).limit(limit)).all()
 
-        return articles
+        return count,articles
 
 
     def list_articles(self,user_level: int=None,offset:int=0,limit:Annotated[int,Query(le=1000)]=1000):
 
         if user_level!=0:
-            count = self.session.exec(select(func.count(Article.id)).where(Article.alive == True)).one()
+            count = self.session.exec(select(func.count(Article.article_id)).where(Article.alive == True)).one()
             articles=self.session.exec(select(Article).where(Article.alive==True).order_by(desc(Article.create_time)).offset(offset).limit(limit)).all()
 
         else:
-            count = self.session.exec(select(func.count(Article.id))).one()
+            count = self.session.exec(select(func.count(Article.article_id))).one()
             articles = self.session.exec(select(Article).order_by(desc(Article.create_time)).offset(offset).limit(limit)).all()
         return count,articles
 

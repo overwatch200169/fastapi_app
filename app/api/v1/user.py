@@ -5,6 +5,7 @@ from fastapi import APIRouter, HTTPException, Depends, UploadFile, Query
 from app.core.config import settings
 from app.dependencies.article import ArticleServiceDep
 from app.models import User
+from app.models.base import Page
 from app.schemas.articles import ArticlePublic, ArticleList
 from app.schemas.users import UserPublic, UserCreate, UserProfilePublic, UserProfileUpdate
 # from app.utils.deps import UserServiceDep, get_current_active_user
@@ -59,12 +60,12 @@ async def read_user_profile(user_id:int,service:UserServiceDep):
         raise HTTPException(404,"user profile lost")
     return user_profile
 
-@router.get('/{user_id}/article',response_model=list[ArticleList])
+@router.get('/{user_id}/article',response_model=Page[ArticleList])
 async def read_article_by_user(user_id:int,service:ArticleServiceDep,offset: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=100),):
-    article_by_user=service.list_articles_by_user(user_id,offset,limit)
+    total,items=service.list_articles_by_user(user_id,offset,limit)
 
-    return article_by_user
+    return {'total':total,'items':items}
 
 
 @router.patch('/{user_id}/profile',response_model=UserProfilePublic)
