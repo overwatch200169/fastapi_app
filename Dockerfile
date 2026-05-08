@@ -12,6 +12,7 @@ ENV PYTHONUNBUFFERED 1
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gcc \
     libmariadb-dev \
+    libmagic1\
     && rm -rf /var/lib/apt/lists/*
 
 # 5. 先复制 requirements 并安装，利用 Docker 缓存机制加速后续构建
