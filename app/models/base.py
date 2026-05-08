@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import TypeVar, List, Generic
 
 from pydantic import BaseModel, Field
 from sqlmodel import SQLModel
@@ -40,3 +41,8 @@ class EsterEggBase(SQLModel):
 class CheckiCountBase(SQLModel):
     name:str|None
     cheki_count:int|None
+
+T = TypeVar("T")
+class Page(BaseModel,Generic[T]):
+    total: int            # 总条目数
+    items: List[T]  # 当前页的数据列表

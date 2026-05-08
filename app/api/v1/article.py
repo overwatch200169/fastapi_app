@@ -3,6 +3,7 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.params import Query
 
+from app.models.base import Page
 from app.schemas.articles import ArticlePublic, ArticleList, ArticleCreate, ArticleUpdate
 from app.schemas.users import UserPublic
 # from app.utils.deps import ArticleServiceDep, get_current_active_user
@@ -11,7 +12,7 @@ from app.dependencies.auth import get_current_active_user_dep, need_admin_dep
 
 router=APIRouter(tags=['Article'])
 
-@router.get('/all',response_model=list[ArticleList])
+@router.get('/all',response_model=Page[ArticleList])
 async def list_article_admin(service:ArticleServiceDep,user:need_admin_dep,offset:Optional[int]=Query(None),limit:Optional[int]=Query(None)):
     return service.list_articles(offset=offset,limit=limit,user_level=user.level)
 
@@ -22,7 +23,7 @@ async def read_article(article_id:int,service:ArticleServiceDep):
         raise HTTPException(status_code=404,detail="article nor found")
     return article
 
-@router.get('/',response_model=list[ArticleList])
+@router.get('/',response_model=Page[ArticleList])
 async def list_article(offset,limit,service:ArticleServiceDep):
     return service.list_articles(offset=offset,limit=limit)
 
