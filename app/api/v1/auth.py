@@ -41,3 +41,6 @@ async def access_token_refresh(refresh_access_token:refresh_access_token_dep,res
     return Token(access_token=new_access_token,token_type='bearer')
 
 #csrf 端点
+@router.get('/csrf')
+async def get_csrf():
+    return{'message':'you get a csrf token'}
