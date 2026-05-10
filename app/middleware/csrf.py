@@ -38,6 +38,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # 默认豁免的路径
         self.exempt_paths = exempt_paths or [
+            r"^/api/v1/auth/token",
             r"^/docs$",
             r"^/redoc$",
             r"^/openapi\.json$",
@@ -99,9 +100,9 @@ class CSRFMiddleware(BaseHTTPMiddleware):
             # 检查是否需要 CSRF 保护
             if not self._requires_csrf_protection(request):
                 response = await call_next(request)
-                if request.method == "GET":
-                    await self._set_csrf_cookie(client,response, request)
-                print(f"[CSRF {trace_id}] GET请求完成: 状态{response.status_code}")
+                #所有请求都可以获得token
+                await self._set_csrf_cookie(client,response, request)
+                print(f"[CSRF {trace_id}] 请求完成: 状态{response.status_code}")
                 return response
 
             # 获取 Token
@@ -120,6 +121,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
             print(f"[CSRF {trace_id}] 验证成功，继续处理...")
             response = await call_next(request)
+            #业务逻辑执行成功后，生成一个新的Token返回给前端
+            # 这样下一次 POST 就能用这个新 Token，实现“阅后即焚”的闭环
+            if 200 <= response.status_code < 300:
+                await self._set_csrf_cookie(client, response, request)
 
             print(f"[CSRF {trace_id}] 请求处理完成: 状态{response.status_code}")
             return response
