@@ -7,7 +7,7 @@ from app.models.base import UserBase,UserProfileBase
 
 
 class User(UserBase,table=True):
-    username: str = Field(index=True,unique=True,max_length=50,nullable=False,min_length=1)
+    username: str = Field(index=True,unique=True,max_length=255,nullable=False,min_length=1)
     user_id: int | None = Field(default=None, primary_key=True,sa_column_kwargs={"autoincrement": True})
     email: str = Field(default=None, index=True, unique=True,max_length=255)
     password: str | None = Field(default=None, index=True)

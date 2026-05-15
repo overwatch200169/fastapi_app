@@ -27,4 +27,5 @@ EXPOSE 8080
 
 # 8. 启动命令（配合 uvicorn，注意这里的 host 必须是 0.0.0.0）
 # Zeabur 建议使用 8080 端口，或者在后台自行配置
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+#CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8080"]
+CMD ["sh", "-c", "alembic upgrade head && uvicorn app.main:app --host 0.0.0.0 --port 8080"]
