@@ -8,4 +8,4 @@ class EsterEgg(EsterEggBase,table=True):
     picture_url:str
 
 class CheckiCount(CheckiCountBase,table=True):
-    id:int|None=Field(default=None, primary_key=True,sa_column_kwargs={"autoincrement": True},index=True)
+    id:int|None=Field(default=None, primary_key=True,sa_column_kwargs={"autoincrement": True})
