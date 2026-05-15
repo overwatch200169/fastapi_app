@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from pydantic import field_serializer
 # from pydantic import EmailStr
 from sqlmodel import SQLModel,Field,Index
 
@@ -11,7 +12,7 @@ class User(UserBase,table=True):
     user_id: int | None = Field(default=None, primary_key=True,sa_column_kwargs={"autoincrement": True})
     email: str = Field(default=None,max_length=255)
     password: str | None = Field(default=None)
-    create_at: datetime=Field(default=datetime.now(timezone.utc),nullable=False)
+    create_at: datetime=Field(default_factory=lambda:datetime.now(timezone.utc),nullable=False)
     level: int | None
     __table_args__ = (
         Index("idx_user_username", "username",unique=True),

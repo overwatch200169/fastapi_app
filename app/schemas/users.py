@@ -1,6 +1,6 @@
-from datetime import datetime
+from datetime import datetime, timezone
 
-from pydantic import BaseModel, EmailStr, Field, validator, field_validator
+from pydantic import BaseModel, EmailStr, Field, validator, field_validator, field_serializer
 
 from app.models.base import UserBase, UserProfileBase
 
@@ -37,6 +37,18 @@ class UserProfilePublic(UserProfileBase):
     age: int | None
     bio: str | None
     avatar_url: str | None
+
+    @field_serializer('birthday')
+    def serialize_dt(self, dt: datetime):
+        if dt is None:
+            return None
+        # 如果没有时区信息（Naive），先补上 UTC
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=timezone.utc)
+
+        # 将 ISO 格式中的 +00:00 替换为 Z
+        # 注意：isoformat() 在有位移时默认产生 +00:00
+        return dt.isoformat().replace('+00:00', 'Z')
 
 class UserProfileUpdate(BaseModel):
     birthday: datetime | None =None
