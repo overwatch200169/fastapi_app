@@ -65,5 +65,26 @@ class ArticleSearch(AsyncDocument):
     alive= Boolean()
     updated_time=Date()
     tags=Keyword(multi=True)
+
+    def to_dict(self, include_meta=False, skip_empty=True):
+        # 1. 调用父类原有的转换逻辑得到字典
+        d = super().to_dict(include_meta=include_meta, skip_empty=skip_empty)
+
+        # 2. 强制转换日期字段为带 Z 的 ISO 字符串
+        # 此时 self.create_time 是 python 的 datetime 对象
+        if self.create_time:
+            # 如果是 naive 对象（无时区），先补上 UTC
+            dt = self.create_time
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            d['create_time'] = dt.isoformat().replace('+00:00', 'Z')
+
+        if self.updated_time:
+            dt = self.updated_time
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            d['updated_time'] = dt.isoformat().replace('+00:00', 'Z')
+
+        return d
     class Index:
         name='articles'
