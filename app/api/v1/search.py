@@ -200,3 +200,43 @@ async def create_article_test(article_data: Article):
         except Exception as e:
             print(f"创建文章失败: {e}")
             raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
+
+@router.get("/test-es-sync")
+async def test_es_sync():
+    # 用你现有的、说搜索不到数据的那个 FastAPI 异步 ES 客户端去精准提人
+    try:
+        # 这里的 client 就是你 FastAPI 原生正在使用的那个异步对象
+        es_client = async_connections.get_connection()
+        res = await es_client.get(index="article_search", id="39")
+        return {
+            "status": "🎉 抓到现行了！数据特么的明明就在里面！",
+            "source_data": res["_source"]
+        }
+    except Exception as e:
+        return {"status": f"❌ 居然连原生的异步客户端也提不到它: {e}"}
+
+
+@router.get("/diagnostic-es")
+async def diagnostic_es():
+    try:
+        es_client = async_connections.get_connection()
+        # 1. 让你 FastAPI 信任的异步客户端直接调到底层物理接口
+        # 获取当前集群所有的物理索引状态
+        indices_res = await es_client.perform_request(
+            method="GET",
+            path="/_cat/indices",
+            params={"format": "json"}  # 让它返回干净的 JSON
+        )
+
+        # 2. 获取当前集群所有的别名映射关系
+        aliases_res = await es_client.perform_request(
+            method="GET",
+            path="/_aliases"
+        )
+
+        return {
+            "🎯 当前集群内存在的所有物理索引": indices_res.body,
+            "🔀 当前集群内所有的别名映射": aliases_res.body
+        }
+    except Exception as e:
+        return {"❌ 诊断失败原因": str(e)}
