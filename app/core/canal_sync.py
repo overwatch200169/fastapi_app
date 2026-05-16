@@ -125,7 +125,7 @@ def sync_to_es(routing_key, event_type, row_data):
 def start_canal_worker():
     # 2. 连接你的 Canal-Server 容器
     client = Client()
-    client.connect(host='127.0.0.1', port=11111)
+    client.connect(host=settings.CANAL_HOST, port=settings.CANAL_PORT)
     client.check_valid()
 
     # 订阅具体的数据库和表（支持正则，这里精准订阅 fastapi 库下的 article 表）
