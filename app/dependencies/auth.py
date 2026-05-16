@@ -31,6 +31,7 @@ async def get_token(request:Request,token_from_header: Annotated[str, Depends(oa
         token=token_from_header
     tokens['access']=token
     tokens['refresh']=refresh_token
+    print(f"DEBUG [get_token]: 提取完毕, access={token}, refresh={refresh_token}")
 
 
     return tokens
@@ -68,7 +69,7 @@ async def get_current_active_user(
 get_current_active_user_dep=Annotated[UserPublic,Depends(get_current_active_user)]
 
 
-async def refresh_access_token(token:Annotated[dict, Depends(get_token)],current_active_user:get_current_active_user_dep):
+async def refresh_access_token(token:Annotated[dict, Depends(get_token)],service: AuthServiceDep):
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="refresh token expire",
@@ -86,9 +87,9 @@ async def refresh_access_token(token:Annotated[dict, Depends(get_token)],current
         print("DEBUG: JWT 解码失败或已过期")  # 这里的 InvalidTokenError 包含了过期
         raise credentials_exception
 
-    user = current_active_user
+    user = service.get_user_from_db(email)
     if user.email != email:
-        print(f"DEBUG: 用户不匹配! 当前活跃用户: {current_active_user.email}, Token 指向: {email}")
+        print(f"DEBUG: 用户不匹配! 当前活跃用户: {user.email}, Token 指向: {email}")
         raise credentials_exception
     new_access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     new_access_token = create_access_token(data={"sub": user.email}, expires_delta=new_access_token_expires)
