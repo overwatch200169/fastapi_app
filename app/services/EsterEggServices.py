@@ -1,4 +1,4 @@
-from sqlmodel import Session, select
+from sqlmodel import Session, select,func
 
 from app.models.ester_egg import EsterEgg, CheckiCount
 from app.schemas.ester_egg import EggPublic, CheckiUpdate, CheckiCreate
@@ -11,10 +11,16 @@ class EsterEggService:
     def get_eggs(self):
         eggs=self.session.exec(select(EsterEgg)).all()
         return eggs
+    def get_checki_count_page(self,offset:int,limit:int=20):
+        total = self.session.exec(select(func.count(CheckiCount.id))).one()
+        checki=self.session.exec(select(CheckiCount).offset(offset).limit(limit)).all()
+        return total,checki
+
     def get_checki_count_all(self):
 
         checki=self.session.exec(select(CheckiCount)).all()
         return checki
+
     def get_checki_count(self,id):
         checki=self.session.get(CheckiCount,id)
         return checki
