@@ -40,7 +40,7 @@ def start_canal_worker():
             if message.get('id'):
                 client.ack(message['id'])
 
-            time.sleep(0.2)
+            time.sleep(0.5)
 
     except Exception as e:
         logger.error(f"❌ 后台线程发生异常: {e}")
