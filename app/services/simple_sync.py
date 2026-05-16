@@ -3,9 +3,7 @@ import logging
 from datetime import datetime, timedelta, timezone
 from typing import List, Optional, Dict, Any
 import json
-
-from sqlmodel import Session
-
+from sqlmodel import Session,select
 from app.dependencies.database import SessionDep
 from app.models import Article
 from app.schemas.articles import ArticleSearch
@@ -29,15 +27,15 @@ def get_recent_articles(
 
     # 计算查询的起始时间
     if last_sync_time is None:
-        start_time = datetime.utcnow() - timedelta(hours=hours_back)
+        start_time = datetime.now(timezone.utc)- timedelta(hours=hours_back)
     else:
         start_time = last_sync_time
 
-    logger.info(f"查询数据库，起始时间: {start_time}")
+    logger.debug(f"查询数据库，起始时间: {start_time}")
 
     # 查询最近更新或创建的文章
     # 假设您的Article模型有updated_at和created_at字段
-    from sqlmodel import select
+
 
     statement = select(Article).where(
         (Article.updated_time >= start_time) |
@@ -51,7 +49,8 @@ def get_recent_articles(
     return articles
 
 
-async def create_article_search_instance(db_article):
+# async def create_article_search_instance(db_article):
+def convert_db_to_es_model(db_article: Article) -> Optional[ArticleSearch]:
     """
     将 SQLModel Article 转换为 ArticleSearch 并保存到 Elasticsearch
 
@@ -73,66 +72,48 @@ async def create_article_search_instance(db_article):
         es_article.author_id = db_article.author_id
         es_article.create_time = db_article.create_time
         es_article.updated_time=db_article.updated_time
-        es_article.tags=[tag.strip() for tag in db_article.tags.split(',')if tag.strip()]
+        if db_article.tags:
+            es_article.tags = [tag.strip() for tag in db_article.tags.split(',') if tag.strip()]
+        else:
+            es_article.tags = []
 
         # 处理时间字段
-        if hasattr(db_article, 'create_time') and db_article.create_time:
-            if isinstance(db_article.create_time, datetime):
-                es_article.create_time = db_article.create_time
-            else:
-                try:
-                    es_article.create_time = datetime.fromisoformat(
-                        str(db_article.create_time).replace('Z', '+00:00')
-                    )
-                except (ValueError, TypeError):
-                    es_article.create_time = datetime.now(timezone.utc)
+        es_article.create_time = db_article.create_time or datetime.now(timezone.utc)
+        es_article.updated_time = db_article.updated_time or datetime.now(timezone.utc)
 
-        if hasattr(db_article, 'updated_time') and db_article.updated_time:
-            if isinstance(db_article.updated_time, datetime):
-                es_article.updated_time = db_article.updated_time
-            else:
-                try:
-                    es_article.updated_time = datetime.fromisoformat(
-                        str(db_article.updated_time).replace('Z', '+00:00')
-                    )
-                except (ValueError, TypeError):
-                    es_article.updated_time = datetime.now(timezone.utc)
-        # 保存到 Elasticsearch
-
-
-        print(f"文章已同步到ES: ID={db_article.article_id}")
         return es_article
 
     except Exception as e:
-        print(f"保存文章到ES失败 ID={getattr(db_article, 'article_id', 'unknown')}: {e}")
-        return False
+        logger.error(f"文章对象模型转换失败 [ArticleID: {getattr(db_article, 'article_id', 'Unknown')}]: {e}",
+                     exc_info=True)
+        return None
 
 
-async def batch_create_article_search_instances(
-        db_articles: list
-) -> list:
-    """
-    批量转换文章为 ArticleSearch 实例（不保存）
-
-    Args:
-        db_articles: SQLModel Article 实例列表
-
-    Returns:
-        ArticleSearch 实例列表
-    """
-    instances = []
-
-    for article in db_articles:
-        try:
-            instance = await create_article_search_instance(article)
-            instances.append(instance)
-
-        except Exception as e:
-            print(f"转换文章失败 ID={getattr(article, 'article_id', 'unknown')}: {e}")
-            continue
-
-    print(f"批量转换完成: {len(instances)}/{len(db_articles)} 篇文章")
-    return instances
+# async def batch_create_article_search_instances(
+#         db_articles: list
+# ) -> list:
+#     """
+#     批量转换文章为 ArticleSearch 实例（不保存）
+#
+#     Args:
+#         db_articles: SQLModel Article 实例列表
+#
+#     Returns:
+#         ArticleSearch 实例列表
+#     """
+#     instances = []
+#
+#     for article in db_articles:
+#         try:
+#             instance = await create_article_search_instance(article)
+#             instances.append(instance)
+#
+#         except Exception as e:
+#             print(f"转换文章失败 ID={getattr(article, 'article_id', 'unknown')}: {e}")
+#             continue
+#
+#     print(f"批量转换完成: {len(instances)}/{len(db_articles)} 篇文章")
+#     return instances
 
 
 async def upsert_article_search_instances(
@@ -154,7 +135,7 @@ async def upsert_article_search_instances(
 
     if not article_instances:
         logger.info("没有文章实例需要保存")
-        return {"indexed": 0, "failed": 0}
+        return {"updated": 0, "failed": 0}
 
     # 准备批量 upsert 操作
     actions = []
@@ -162,6 +143,8 @@ async def upsert_article_search_instances(
         # 获取文档ID
         # doc_id = instance.meta.id if hasattr(instance.meta, 'id') else str(instance.article_id)
         doc_id =  str(instance.article_id)
+        # 核心：使用 elasticsearch-dsl 的 to_dict() 将模型转为符合 ES 格式的字典
+        # 配合 doc_as_upsert 实现“存在则更新，不存在则创建”
         # 构建 upsert 操作
         action = {
             "_op_type": "update",  # 使用 update 操作
@@ -174,6 +157,7 @@ async def upsert_article_search_instances(
 
     # 执行批量 upsert
     try:
+        # 使用官方推荐的异步批量方法
         success, failed = await async_bulk(
             es_client,
             actions,
@@ -181,11 +165,11 @@ async def upsert_article_search_instances(
             raise_on_error=False
         )
 
-        print(f"批量 upsert 完成: 成功 {success} 条, 失败 {failed} 条")
+        logger.info(f"ES 批量 Upsert 操作完成: 成功 {success} 条, 失败 {failed} 条")
         return {"updated": success, "failed": failed}
 
     except Exception as e:
-        print(f"批量 upsert 失败: {e}")
+        logger.error(f"ES 批量 Upsert 期间发生严重网络或语法异常: {e}", exc_info=True)
         return {"updated": 0, "failed": len(actions), "error": str(e)}
 
 
@@ -207,9 +191,7 @@ async def simple_article_sync(
     Returns:
         同步结果
     """
-    from sqlmodel import select
-    from datetime import datetime, timedelta
-    from app.models.articles import Article
+
 
     sync_start = datetime.utcnow() - timedelta(hours=hours_back)
 
@@ -236,7 +218,11 @@ async def simple_article_sync(
             }
 
         # 步骤1: 转换为 ArticleSearch 实例
-        article_instances = await batch_create_article_search_instances(db_articles)
+        article_instances = []
+        for article_instance in db_articles:
+            instance=convert_db_to_es_model(article_instance)
+            if instance:
+                article_instances.append(instance)
 
         # 步骤2: 批量保存到 Elasticsearch
         # if use_upsert:

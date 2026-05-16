@@ -47,6 +47,9 @@ class Settings(BaseSettings):
 
     #上传文件类型校验
     ALLOWED_FILE_TYPES:list
+    #canal
+    CANAL_HOST:str
+    CANAL_PORT:int
     # 读取 .env 文件配置
     model_config = SettingsConfigDict(env_file="config_local.env",
                                       env_file_encoding='utf-8',

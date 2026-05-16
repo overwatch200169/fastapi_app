@@ -1,3 +1,5 @@
+import asyncio
+import threading
 from contextlib import asynccontextmanager
 
 import redis.asyncio as redis
@@ -6,6 +8,7 @@ from sqlmodel import SQLModel
 
 from . import models
 from .api import api_router
+from .core.canal_sync import start_canal_worker, stop_event
 from .core.captcha_img import CaptchaManager
 from .core.config import settings
 from .core.es_client import create_es_connection,get_es_connection
@@ -31,6 +34,10 @@ def create_db_and_tables():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    canal_thread = threading.Thread(target=start_canal_worker)
+    canal_thread.daemon = True  # 👈 核心绝杀：设置为守护线程！
+    canal_thread.start()
+    print("🚀 Backend Service: Canal Daemon Worker Started.")
     storage_type = 'redis'
 
     if storage_type == "redis":
@@ -51,8 +58,8 @@ async def lifespan(app: FastAPI):
     try:
 
         es_client = await get_es_connection()
-        # info = await es_client.info()
-        # print(f"[启动成功] 已连接到 Elasticsearch 集群: {info.get('cluster_name')}")
+        info = await es_client.info()
+        print(f"[启动成功] 已连接到 Elasticsearch 集群: {info.get('cluster_name')}, 节点名称: {info['name']}")
         await init_es_indexes(es_client)
 
 
@@ -66,13 +73,14 @@ async def lifespan(app: FastAPI):
     try:
         from app.core.article_sync_task import run_article_sync
         # 可以立即执行一次，但使用后台任务避免阻塞启动
-        import asyncio
+
         asyncio.create_task(run_article_sync())
     except Exception as e:
         print(f"初始同步执行失败: {e}")
     yield
     # 关闭时：可以在这里添加清理逻辑，例如关闭所有连接
     # connections.remove_connection('default')
+
     try:
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         scheduler = AsyncIOScheduler()

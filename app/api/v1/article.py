@@ -34,10 +34,10 @@ async def list_article(offset,limit,service:ArticleServiceDep):
 @router.post('/',response_model=ArticlePublic)
 async def create_article(article:ArticleCreate,service:ArticleServiceDep,user:get_current_active_user_dep):
     article_data=service.create_article(article, user)
-    try:
-        await service.create_article_search(article_data)
-    except:
-        raise HTTPException(status_code=403,detail='add to search fail')
+    # try:
+    #     await service.create_article_search(article_data)
+    # except:
+    #     raise HTTPException(status_code=403,detail='add to search fail')
     return article_data
 
 @router.patch('/{article_id}')
@@ -64,8 +64,8 @@ async def delete_article(article_id,service:ArticleServiceDep,user:get_current_a
 
     if not is_removed:
         raise HTTPException(status_code=403,detail='remove fail')
-    else:
-        await service.delete_article_search_by_id(article_id)
+    # else:
+    #     await service.delete_article_search_by_id(article_id)
     return is_removed
     # pass
 
