@@ -61,7 +61,7 @@ def parse_columns(columns):
                 data[col.name] = col.value
         elif col.name in ['create_time','updated_time']:
             try:
-                data[col.name] = int(time.mktime(time.strptime(col.value, "%Y-%m-%d %H:%M:%S")))
+                data[col.name] = col.value.replace(" ", "T")
             except ValueError:
                 data[col.name] = col.value
         elif col.name in ['alive']:
