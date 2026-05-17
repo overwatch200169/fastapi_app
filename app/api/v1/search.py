@@ -148,6 +148,7 @@ async def search_articles(
 @router.get('/monthly_aggression')
 async def monthly_status():
     s = ArticleSearch.search()
+    s = s.filter("term", alive=True)
     s.aggs.bucket('articles_per_month',  # 聚合结果的名称
             'date_histogram',      # 聚合类型：日期直方图
             field='create_time',    # 您模型中存储创建时间的字段
