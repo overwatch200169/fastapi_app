@@ -23,7 +23,7 @@ def start_canal_worker():
     client.connect(host=settings.CANAL_HOST, port=settings.CANAL_PORT)
     client.check_valid()
     client.subscribe(client_id="1001", destination="example", filter="fastapi\\.article")
-    print("🚀 Python Canal 监听服务已成功启动...")
+    logger.info("🚀 Python Canal 监听服务已成功启动...")
 
 
     try:
@@ -43,9 +43,9 @@ def start_canal_worker():
             time.sleep(0.5)
 
     except Exception as e:
-        print(f"❌ 后台线程发生异常: {e}")
+        logger.error(f"❌ 后台线程发生异常: {e}")
     finally:
-        print("🔒 正在释放 Canal 连接并关闭后台线程...")
+        logger.info("🔒 正在释放 Canal 连接并关闭后台线程...")
         client.disconnect()
 
 
@@ -62,7 +62,6 @@ def parse_columns(columns):
         elif col.name in ['create_time','updated_time']:
             try:
                 data[col.name] = int(time.mktime(time.strptime(col.value, "%Y-%m-%d %H:%M:%S")))
-                print(data[col.name])
             except ValueError:
                 data[col.name] = col.value
         elif col.name in ['alive']:
@@ -80,7 +79,7 @@ def parse_columns(columns):
 def sync_to_es(routing_key, event_type, row_data):
     """核心同步业务逻辑：将解析好的数据包塞入 ES9"""
     # info = es_client.info()
-    # print(f"当前连接的 ES 集群名称: {info['cluster_name']}, 节点名称: {info['name']}")
+    # logger.info(f"当前连接的 ES 集群名称: {info['cluster_name']}, 节点名称: {info['name']}")
     # 🔹 情况 A：若是新增(INSERT)或修改(UPDATE)事件，核心数据全部在 afterColumns 中
     if event_type in [EntryProtocol_pb2.EventType.INSERT, EntryProtocol_pb2.EventType.UPDATE]:
         data = parse_columns(row_data.afterColumns)
@@ -91,7 +90,7 @@ def sync_to_es(routing_key, event_type, row_data):
 
         # 打印日志（Python 默认原生完美处理 UTF-8，控制台再无乱码烦恼）
         event_name = EntryProtocol_pb2.EventType.Name(event_type)
-        print(f"[{routing_key}] 🟢 捕获到 {event_name} 事件 | ID: {article_id} | 数据: {data}")
+        logger.info(f"[{routing_key}] 🟢 捕获到 {event_name} 事件 | ID: {article_id} | 数据: {data}")
 
         # 增量/全量覆盖写入 ES9 索引（这里直接调用你成熟的 ES9 SDK，再无兼容性问题）
         es_client.index(
@@ -106,10 +105,10 @@ def sync_to_es(routing_key, event_type, row_data):
                 id=str(article_id),
                 document=data
             )
-            print(f"🎯 ES9 写入回执单: {response}")
+            logger.info(f"🎯 ES9 写入回执单: {response}")
 
         except Exception as e:
-            print(f"❌ 写入时发生致命错误: {e}")
+            logger.error(f"❌ 写入时发生致命错误: {e}")
 
     # 🔹 情况 B：若是删除(DELETE)事件，我们需要根据变更前的数据(beforeColumns)把 ES 里的文档干掉
     elif event_type == EntryProtocol_pb2.EventType.DELETE:
@@ -118,7 +117,7 @@ def sync_to_es(routing_key, event_type, row_data):
 
         if article_id and es_client.exists(index="articles", id=str(article_id)):
             es_client.delete(index="articles", id=str(article_id))
-            print(f"[{routing_key}] 🔴 捕获到 DELETE 事件 | 已从 ES9 成功移除文章 ID: {article_id}")
+            logger.info(f"[{routing_key}] 🔴 捕获到 DELETE 事件 | 已从 ES9 成功移除文章 ID: {article_id}")
 
 
 
@@ -131,7 +130,7 @@ def start_canal_worker():
     # 订阅具体的数据库和表（支持正则，这里精准订阅 fastapi 库下的 article 表）
     # 注意：在 Python 正则中，点号需要用双反斜杠转义
     client.subscribe(client_id="1001", destination="example", filter="fastapi\\.article")
-    print("🚀 Python Canal 监听服务已成功启动，正在死循环实时监听 Binlog 流...")
+    logger.info("🚀 Python Canal 监听服务已成功启动，正在死循环实时监听 Binlog 流...")
 
     try:
         while True:
@@ -155,7 +154,7 @@ def start_canal_worker():
                         try:
                             sync_to_es(routing_key, event_type, row_data)
                         except Exception as e:
-                            print(f"❌ 数据同步至 ES9 失败: {e}")
+                            logger.error(f"❌ 数据同步至 ES9 失败: {e}")
 
             # 💡 核心：确认消费成功！通知 Canal-Server，Binlog 游标向前推进
             if message.get('id'):
@@ -164,7 +163,7 @@ def start_canal_worker():
             time.sleep(0.2)  # 适当轻微平摊 CPU 轮询压力
 
     except KeyboardInterrupt:
-        print("\n👋 收到终止信号，正在安全断开与 Canal-Server 的连接...")
+        logger.info("\n👋 收到终止信号，正在安全断开与 Canal-Server 的连接...")
     finally:
         client.disconnect()
 

@@ -1,3 +1,5 @@
+import logging
+
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import Response, JSONResponse
@@ -13,7 +15,7 @@ from fastapi import Depends,Request
 
 import redis.asyncio as redis
 
-
+logger=logging.getLogger(__name__)
 
 
 class CSRFMiddleware(BaseHTTPMiddleware):
@@ -91,10 +93,10 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         trace_id = request.state.request_trace_id
         current_time = time.time()
 
-        print(f"\n{'=' * 60}")
-        print(f"[CSRF {trace_id}] 开始处理: {request.method} {request.url.path}")
-        print(f"[CSRF {trace_id}] 时间: {current_time}")
-        print(f"[CSRF {trace_id}] 请求ID: {id(request)}")  # 内存地址，查看是否是同一个对象
+        logger.info(f"\n{'=' * 60}")
+        logger.info(f"[CSRF {trace_id}] 开始处理: {request.method} {request.url.path}")
+        logger.info(f"[CSRF {trace_id}] 时间: {current_time}")
+        logger.info(f"[CSRF {trace_id}] 请求ID: {id(request)}")  # 内存地址，查看是否是同一个对象
 
         try:
             # 检查是否需要 CSRF 保护
@@ -102,39 +104,39 @@ class CSRFMiddleware(BaseHTTPMiddleware):
                 response = await call_next(request)
                 #所有请求都可以获得token
                 await self._set_csrf_cookie(client,response, request)
-                print(f"[CSRF {trace_id}] 请求完成: 状态{response.status_code}")
+                logger.info(f"[CSRF {trace_id}] 请求完成: 状态{response.status_code}")
                 return response
 
             # 获取 Token
             csrf_cookie = request.cookies.get(self.cookie_name)
             csrf_header = request.headers.get(self.header_name)
 
-            print(f"[CSRF {trace_id}] 验证Token...")
+            logger.info(f"[CSRF {trace_id}] 验证Token...")
             verify_result = await self._verify_csrf_token(client,csrf_cookie, csrf_header)
 
             if not verify_result:
-                print(f"[CSRF {trace_id}] 验证失败，返回403")
+                logger.error(f"[CSRF {trace_id}] 验证失败，返回403")
                 return JSONResponse(
                     status_code=HTTP_403_FORBIDDEN,
                     content={"detail": "CSRF token verification failed"}
                 )
 
-            print(f"[CSRF {trace_id}] 验证成功，继续处理...")
+            logger.info(f"[CSRF {trace_id}] 验证成功，继续处理...")
             response = await call_next(request)
             #业务逻辑执行成功后，生成一个新的Token返回给前端
             # 这样下一次 POST 就能用这个新 Token，实现“阅后即焚”的闭环
             if 200 <= response.status_code < 300:
                 await self._set_csrf_cookie(client, response, request)
 
-            print(f"[CSRF {trace_id}] 请求处理完成: 状态{response.status_code}")
+            logger.info(f"[CSRF {trace_id}] 请求处理完成: 状态{response.status_code}")
             return response
 
         except Exception as e:
-            print(f"[CSRF {trace_id}] 发生异常: {type(e).__name__}: {e}")
+            logger.error(f"[CSRF {trace_id}] 发生异常: {type(e).__name__}: {e}")
             raise
         finally:
-            print(f"[CSRF {trace_id}] 中间件退出")
-            print(f"{'=' * 60}")
+            logger.info(f"[CSRF {trace_id}] 中间件退出")
+            logger.info(f"{'=' * 60}")
 
     def _requires_csrf_protection(self, request: Request) -> bool:
         """检查是否需要 CSRF 保护"""
@@ -237,20 +239,20 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         """验证 CSRF Token"""
         # 两个 Token 都必须存在
         if not cookie_token or not header_token:
-            print(f"[CSRF验证失败] 原因1: Token缺失 - cookie: {cookie_token}, header: {header_token}")
+            logger.error(f"[CSRF验证失败] 原因1: Token缺失 - cookie: {cookie_token}, header: {header_token}")
             return False
 
         # 使用恒定时间比较
         if not hmac.compare_digest(cookie_token, header_token):
-            print(f"[CSRF验证失败] 原因2: Token不匹配")
-            print(f"  Cookie token: {cookie_token[:50]}...")
-            print(f"  Header token: {header_token[:50]}...")
+            logger.error(f"[CSRF验证失败] 原因2: Token不匹配")
+            logger.info(f"  Cookie token: {cookie_token[:50]}...")
+            logger.info(f"  Header token: {header_token[:50]}...")
             return False
 
         # 验证 Token 格式
         parts = cookie_token.split(":")
         if len(parts) != 3:
-            print(f"[CSRF验证失败] 原因3: Token格式错误 - 部分数: {len(parts)}")
+            logger.error(f"[CSRF验证失败] 原因3: Token格式错误 - 部分数: {len(parts)}")
             return False
 
         token, timestamp_str, signature = parts
@@ -276,16 +278,16 @@ class CSRFMiddleware(BaseHTTPMiddleware):
         expected_signature = hmac.new(self.secret_key, data, sha256).hexdigest()
 
         if not hmac.compare_digest(signature, expected_signature):
-            print(f"[CSRF验证失败] 原因6: 签名验证失败")
-            print(f"  预期签名: {expected_signature}")
-            print(f"  实际签名: {signature}")
+            logger.error(f"[CSRF验证失败] 原因6: 签名验证失败")
+            logger.info(f"  预期签名: {expected_signature}")
+            logger.info(f"  实际签名: {signature}")
             return False
 
         # 防止重放攻击
         #Lua 脚本检查并删除token
-        print("开始删除使用后的token")
+        logger.info("开始删除使用后的token")
         key = f"csrf:{cookie_token}"
-        print(key)
+        logger.info(key)
 
 
         script = """
@@ -340,7 +342,7 @@ class CSRFMiddleware(BaseHTTPMiddleware):
 
         # SET key value NX EX seconds
         result = await client.set(name=key, value="1", nx=True, ex=3600)
-        print('将csrf token 存储到redis', result)
+        logger.info(f'将csrf token 存储到redis，结果为{result}', )
         # 返回 True 表示成功存储（之前不存在）
         return result is True
 

@@ -1,3 +1,4 @@
+import logging
 from datetime import timedelta
 from typing import Annotated
 
@@ -13,6 +14,7 @@ from app.models.base import TokenData, Token
 from app.schemas.users import UserPublic
 from app.services.AuthServices import AuthService
 
+logger=logging.getLogger(__name__)
 
 def get_auth_service(session:SessionDep):
     return AuthService(session)
@@ -31,7 +33,7 @@ async def get_token(request:Request,token_from_header: Annotated[str, Depends(oa
         token=token_from_header
     tokens['access']=token
     tokens['refresh']=refresh_token
-    print(f"DEBUG [get_token]: 提取完毕, access={token}, refresh={refresh_token}")
+    logger.debug(f"DEBUG [get_token]: 提取完毕, access={token}, refresh={refresh_token}")
 
 
     return tokens
@@ -80,16 +82,16 @@ async def refresh_access_token(token:Annotated[dict, Depends(get_token)],service
         email=payload.get('sub')
         type = payload.get('type')
         if email is None or type !='refresh':
-            print("DEBUG: Token 中缺失 sub/email 或type")
+            logger.error("DEBUG: Token 中缺失 sub/email 或type")
             raise credentials_exception
 
     except InvalidTokenError:
-        print("DEBUG: JWT 解码失败或已过期")  # 这里的 InvalidTokenError 包含了过期
+        logger.error("DEBUG: JWT 解码失败或已过期")  # 这里的 InvalidTokenError 包含了过期
         raise credentials_exception
 
     user = service.get_user_from_db(email)
     if user.email != email:
-        print(f"DEBUG: 用户不匹配! 当前活跃用户: {user.email}, Token 指向: {email}")
+        logger.error(f"DEBUG: 用户不匹配! 当前活跃用户: {user.email}, Token 指向: {email}")
         raise credentials_exception
     new_access_token_expires = timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     new_access_token = create_access_token(data={"sub": user.email}, expires_delta=new_access_token_expires)

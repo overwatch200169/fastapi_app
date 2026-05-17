@@ -14,29 +14,29 @@ async def init_es_indexes(es_client,delete_existing = False):
     初始化Elasticsearch索引
     :param delete_existing: 是否删除已存在的索引（用于开发环境）
     """
-    print("即将调用 init_es_indexes()")
+    logger.info("即将调用 init_es_indexes()")
     try:
         # 获取连接
 
         es = es_client
-        print("已获取Elasticsearch连接")
+        logger.info("已获取Elasticsearch连接")
 
         # 获取索引对象
         index = AsyncIndex(ArticleSearch._index._name, using='default')
-        print(f"索引名称: {index._name}")
+        logger.info(f"索引名称: {index._name}")
 
 
         # 检查索引是否存在
         if await index.exists():
             if delete_existing:
-                print(f"删除已存在的索引: {index._name}")
+                logger.info(f"删除已存在的索引: {index._name}")
                 await index.delete()
             else:
-                print(f"索引已存在: {index._name}")
+                logger.info(f"索引已存在: {index._name}")
                 return
 
         # 创建索引
-        print(f"创建索引: {index._name}")
+        logger.info(f"创建索引: {index._name}")
 
         # 应用映射
         # 注意：Document.init()会创建索引和映射
@@ -46,7 +46,7 @@ async def init_es_indexes(es_client,delete_existing = False):
         # 对应文档中"Index Aliases"部分
         # index.put_alias('articles_current')
 
-        print(f"索引 {index._name} 创建成功")
+        logger.info(f"索引 {index._name} 创建成功")
 
     except Exception as e:
         logger.error(f"初始化Elasticsearch索引失败: {e}")

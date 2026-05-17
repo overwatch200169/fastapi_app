@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import threading
 from contextlib import asynccontextmanager
 
@@ -26,6 +27,7 @@ from .services.es_init import init_es_indexes
 
 # app=FastAPI()
 
+project_logger = logging.getLogger("app")
 
 def create_db_and_tables():
     SQLModel.metadata.create_all(engine)
@@ -34,22 +36,28 @@ def create_db_and_tables():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    uvicorn_formatter = logging.getLogger("uvicorn").handlers[0].formatter
+    project_logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    handler.setFormatter(uvicorn_formatter)
+    project_logger.addHandler(handler)
+
     canal_thread = threading.Thread(target=start_canal_worker)
     canal_thread.daemon = True  # 👈 核心绝杀：设置为守护线程！
     canal_thread.start()
-    print("🚀 Backend Service: Canal Daemon Worker Started.")
+    project_logger.info("🚀 Backend Service: Canal Daemon Worker Started.")
     storage_type = 'redis'
 
     if storage_type == "redis":
         redis_client = redis.Redis(host=settings.REDIS_HOST,password=settings.REDIS_PASSWORD,port=settings.REDIS_PORT, decode_responses=True)
         app.state.redis=redis_client
         store = RedisStorage(redis_client)
-        print("✅ Using Redis Store")
+        project_logger.info("✅ Using Redis Store")
     else:
         store = MemoryStorage()
-        print("⚠️ Using Memory Store (Dev Only)")
-    print("创建验证码管理器")
-    print(store)
+        project_logger.info("⚠️ Using Memory Store (Dev Only)")
+    project_logger.info("创建验证码管理器")
+    project_logger.info(store)
 
     app.state.captcha_manager=CaptchaManager(store)
     create_db_and_tables()
@@ -59,24 +67,24 @@ async def lifespan(app: FastAPI):
 
         es_client = await get_es_connection()
         info = await es_client.info()
-        print(f"[启动成功] 已连接到 Elasticsearch 集群: {info.get('cluster_name')}, 节点名称: {info['name']}")
+        project_logger.info(f"[启动成功] 已连接到 Elasticsearch 集群: {info.get('cluster_name')}, 节点名称: {info['name']}")
         await init_es_indexes(es_client)
 
 
     except Exception as e:
-        print(f"[启动失败] Elasticsearch 连接异常: {e}")
+        project_logger.error(f"[启动失败] Elasticsearch 连接异常: {e}")
     try:
         from app.core.article_sync_task import start_article_sync_scheduler
         start_article_sync_scheduler()
     except Exception as e:
-        print(f"启动定时任务失败: {e}")
+        project_logger.error(f"启动定时任务失败: {e}")
     try:
         from app.core.article_sync_task import run_article_sync
         # 可以立即执行一次，但使用后台任务避免阻塞启动
 
         asyncio.create_task(run_article_sync())
     except Exception as e:
-        print(f"初始同步执行失败: {e}")
+        project_logger.error(f"初始同步执行失败: {e}")
     yield
     # 关闭时：可以在这里添加清理逻辑，例如关闭所有连接
     # connections.remove_connection('default')
@@ -85,12 +93,12 @@ async def lifespan(app: FastAPI):
         from apscheduler.schedulers.asyncio import AsyncIOScheduler
         scheduler = AsyncIOScheduler()
         scheduler.shutdown()
-        print("定时任务已停止")
+        project_logger.info("定时任务已停止")
         del app.state.captcha_manager
-        print("删除验证码管理器")
+        project_logger.info("删除验证码管理器")
     except:
         pass
-    print("FastAPI 应用关闭。")
+    project_logger.info("FastAPI 应用关闭。")
 
 # 创建 FastAPI 应用，并注入生命周期
 app = FastAPI(lifespan=lifespan,title=settings.PROJECT_NAME,docs_url='/docs' if settings.is_production is False else None)

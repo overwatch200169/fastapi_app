@@ -1,3 +1,4 @@
+import logging
 from io import BytesIO
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -6,13 +7,13 @@ from fastapi.responses import StreamingResponse
 from app.core.config import settings
 from app.dependencies.captcha import get_captcha_dep
 from app.models.base import CaptchaVerify
-
+logger=logging.getLogger(__name__)
 router=APIRouter(tags=['captcha'])
 @router.get('/')
 async def get_captcha(service:get_captcha_dep):
     try:
         captcha_id,img_bytes,captcha_code=await service.generate_captcha_img()
-        print(f"生成验证码: ID={captcha_id}, Code={captcha_code}")
+        logger.info(f"生成验证码: ID={captcha_id}, Code={captcha_code}")
 
         # 返回图片
         return StreamingResponse(

@@ -26,7 +26,6 @@ class CaptchaManager:
 
         img_bytes = image_data.getvalue()
         captcha_id=secrets.token_urlsafe(16)
-        print('captcha_id:',captcha_id)
         await self._store.set(key=captcha_id,code=captcha_code,ttl=120)
 
 
