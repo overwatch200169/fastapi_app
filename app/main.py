@@ -2,6 +2,7 @@ import asyncio
 import logging
 import threading
 from contextlib import asynccontextmanager
+from logging.handlers import TimedRotatingFileHandler
 
 import redis.asyncio as redis
 from fastapi import FastAPI
@@ -36,17 +37,33 @@ def create_db_and_tables():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    uvicorn_formatter = logging.getLogger("uvicorn").handlers[0].formatter
-    project_logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    handler.setFormatter(uvicorn_formatter)
-    project_logger.addHandler(handler)
+    #日志设置
 
+    error_file_handler=TimedRotatingFileHandler(
+        filename=settings.LOG_DIR,
+        when='midnight',
+        backupCount=30,
+        encoding='utf-8'
+    )
+    project_logger.setLevel(logging.INFO)
+
+    console_handler = logging.StreamHandler()
+    uvicorn_formatter = logging.getLogger("uvicorn").handlers[0].formatter
+    console_handler.setFormatter(uvicorn_formatter)
+
+    error_file_handler.setLevel(logging.ERROR)
+    file_formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+    error_file_handler.setFormatter(file_formatter)
+
+    project_logger.addHandler(console_handler)
+    project_logger.addHandler(error_file_handler)
+    #canal同步任务
     canal_thread = threading.Thread(target=start_canal_worker)
     canal_thread.daemon = True  # 👈 核心绝杀：设置为守护线程！
     canal_thread.start()
     project_logger.info("🚀 Backend Service: Canal Daemon Worker Started.")
-    storage_type = 'redis'
+    #验证码存储
+    storage_type = 'redis' if settings.is_production else 'other'
 
     if storage_type == "redis":
         redis_client = redis.Redis(host=settings.REDIS_HOST,password=settings.REDIS_PASSWORD,port=settings.REDIS_PORT, decode_responses=True)
@@ -60,6 +77,7 @@ async def lifespan(app: FastAPI):
     project_logger.info(store)
 
     app.state.captcha_manager=CaptchaManager(store)
+    #数据库创建
     create_db_and_tables()
     # 启动时：创建Elasticsearch连接
     create_es_connection()
@@ -73,6 +91,7 @@ async def lifespan(app: FastAPI):
 
     except Exception as e:
         project_logger.error(f"[启动失败] Elasticsearch 连接异常: {e}")
+    #全量同步定时任务
     try:
         from app.core.article_sync_task import start_article_sync_scheduler
         start_article_sync_scheduler()

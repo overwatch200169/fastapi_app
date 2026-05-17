@@ -50,6 +50,10 @@ class Settings(BaseSettings):
     #canal
     CANAL_HOST:str
     CANAL_PORT:int
+
+    #日志目录
+    LOG_DIR:str
+
     # 读取 .env 文件配置
     model_config = SettingsConfigDict(env_file="config_local.env",
                                       env_file_encoding='utf-8',
