@@ -202,12 +202,12 @@ async def create_article_test(article_data: Article):
             raise HTTPException(status_code=500, detail=f"创建失败: {str(e)}")
 
 @router.get("/test-es-sync")
-async def test_es_sync():
+async def test_es_sync(es_index=None, doc_id=None):
     # 用你现有的、说搜索不到数据的那个 FastAPI 异步 ES 客户端去精准提人
     try:
         # 这里的 client 就是你 FastAPI 原生正在使用的那个异步对象
         es_client = async_connections.get_connection()
-        res = await es_client.get(index="article_search", id="39")
+        res = await es_client.get(index=es_index, id=doc_id)
         return {
             "status": "🎉 抓到现行了！数据特么的明明就在里面！",
             "source_data": res["_source"]
